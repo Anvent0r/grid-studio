@@ -1,0 +1,2508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#020617">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Grid & Layout Studio</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Inter:wght@300;400;500;600;700;800;900&family=Montserrat:wght@300;400;500;600;700;800;900&family=Oswald:wght@300;400;500;600;700&family=Pacifico&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Poppins:wght@300;400;500;600;700;800&family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+  <style>
+    html, body { overscroll-behavior: none; }
+
+    .cell-outer { position: absolute; box-sizing: border-box; touch-action: none; }
+    .cell-mask { position: absolute; inset: 0; overflow: hidden; border-radius: inherit; box-sizing: border-box; }
+    .cell-image { position: absolute; display: block; pointer-events: none; user-select: none; -webkit-user-drag: none; max-width: none; max-height: none; }
+    .bg-image-layer { position: absolute; inset: 0; overflow: hidden; }
+
+    .text-box { position: absolute; cursor: grab; user-select: none; box-sizing: border-box; touch-action: none; }
+    .text-box.dragging { cursor: grabbing; }
+    .text-content { white-space: pre-wrap; word-break: break-word; }
+
+    .handle { width: 12px; height: 12px; background: #3b82f6; position: absolute; border: 2px solid white; border-radius: 3px; z-index: 60; box-shadow: 0 1px 3px rgba(0,0,0,.4); }
+    .handle-tl { top: -6px; left: -6px; cursor: nwse-resize; }
+    .handle-tr { top: -6px; right: -6px; cursor: nesw-resize; }
+    .handle-bl { bottom: -6px; left: -6px; cursor: nesw-resize; }
+    .handle-br { bottom: -6px; right: -6px; cursor: nwse-resize; }
+
+    .pan-hint {
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      background: rgba(15,23,42,0.35); color: #fff; font-size: 11px; font-weight: 600;
+      letter-spacing: .02em; text-align: center; pointer-events: none; padding: 6px; z-index: 55;
+    }
+
+    .bg-pattern-dots {
+      background-image: radial-gradient(rgba(255, 255, 255, 0.15) 1.5px, transparent 1.5px);
+      background-size: 16px 16px;
+    }
+    .bg-pattern-grid {
+      background-image: linear-gradient(to right, rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+                        linear-gradient(to bottom, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+      background-size: 20px 20px;
+    }
+    .bg-workspace-pattern {
+      background-image: radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+      background-size: 20px 20px;
+    }
+
+    .snap-line { position: absolute; pointer-events: none; z-index: 999; display: none; }
+    .snap-line-v { top: 0; bottom: 0; width: 1px; background-color: #ef4444; }
+    .snap-line-h { left: 0; right: 0; height: 1px; background-color: #ef4444; }
+
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #020617; }
+    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #334155; }
+
+    .spin { animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    details.panel > summary { cursor: pointer; list-style: none; }
+    details.panel > summary::-webkit-details-marker { display: none; }
+    details.panel[open] > summary .chev { transform: rotate(90deg); }
+    .chev { transition: transform .15s ease; display: inline-block; }
+
+    input[type="range"] { touch-action: pan-x; }
+    /* iOS Safari auto-zooms the page when focusing a text input rendered under 16px;
+       force text-entry fields (not buttons/checkboxes/color/range) to 16px to prevent that. */
+    input[type="text"], input[type="number"], textarea, select { font-size: 16px !important; }
+
+    /* ---- Responsive: off-canvas drawers on phone-sized screens ---- */
+    @media (max-width: 767px) {
+      .mobile-drawer {
+        position: fixed;
+        top: calc(56px + env(safe-area-inset-top));
+        bottom: 0;
+        z-index: 40;
+        width: 88vw;
+        max-width: 340px;
+        transition: transform .22s ease;
+        box-shadow: 0 10px 40px rgba(0,0,0,.55);
+        padding-bottom: env(safe-area-inset-bottom);
+      }
+      #leftSidebar.mobile-drawer { left: 0; transform: translateX(-105%); }
+      #leftSidebar.mobile-drawer.drawer-open { transform: translateX(0); }
+      #rightSidebar.mobile-drawer { right: 0; transform: translateX(105%); }
+      #rightSidebar.mobile-drawer.drawer-open { transform: translateX(0); }
+      .drawer-mobile-header { display: flex !important; }
+    }
+    @media (min-width: 768px) {
+      .mobile-drawer { position: static !important; transform: none !important; box-shadow: none !important; width: 320px; }
+      .drawer-mobile-header { display: none !important; }
+    }
+
+    #canvasWorkspace { touch-action: none; cursor: grab; }
+    #canvasWorkspace.panning { cursor: grabbing; }
+
+    #mobileBackdrop { position: fixed; left: 0; right: 0; bottom: 0; top: calc(56px + env(safe-area-inset-top)); z-index: 30; }
+
+    /* Resize/rotate handles get real touch targets on coarse pointers (fingers) */
+    @media (pointer: coarse) {
+      .handle { width: 22px; height: 22px; border-width: 3px; }
+      .handle-tl { top: -11px; left: -11px; }
+      .handle-tr { top: -11px; right: -11px; }
+      .handle-bl { bottom: -11px; left: -11px; }
+      .handle-br { bottom: -11px; right: -11px; }
+    }
+
+    /* Toasts, replacing blocking alert() popups */
+    #toastHost { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 100; display: flex; flex-direction: column; gap: 8px; align-items: center; pointer-events: none; width: 92vw; max-width: 420px; }
+    .toast { pointer-events: auto; background: #0f172a; border: 1px solid #1e293b; color: #e2e8f0; font-size: 12.5px; font-weight: 500; padding: 10px 14px; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.5); opacity: 0; transform: translateY(8px); transition: opacity .18s ease, transform .18s ease; max-width: 100%; text-align: center; }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .toast.toast-error { border-color: #7f1d1d; background: #1c0a0a; color: #fca5a5; }
+
+    header { padding-top: env(safe-area-inset-top); height: calc(56px + env(safe-area-inset-top)); }
+
+    input[type="range"] { accent-color: #3b82f6; }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 h-screen flex flex-col font-sans overflow-hidden select-none">
+
+  <!-- Header -->
+  <header class="relative z-50 border-b border-slate-800 px-3 sm:px-6 flex items-center justify-between bg-slate-950 shrink-0">
+    <div class="flex items-center space-x-2 sm:space-x-3 min-w-0">
+      <button onclick="openDrawer('left')" class="md:hidden w-9 h-9 shrink-0 flex items-center justify-center rounded-lg bg-slate-900 border border-slate-800 text-base" aria-label="Open tools panel">🧰</button>
+      <div class="w-8 h-8 shrink-0 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-lg flex items-center justify-center font-black text-xl shadow-lg shadow-blue-500/30">G</div>
+      <div class="min-w-0">
+        <h1 class="text-sm sm:text-base font-bold tracking-wide leading-tight truncate">Grid & Layout Studio</h1>
+        <p class="text-[10px] text-slate-400 hidden sm:block">Grid, text & layout builder</p>
+      </div>
+    </div>
+
+    <div class="flex items-center space-x-1.5 sm:space-x-3 shrink-0">
+      <button id="snapToggleBtn" onclick="toggleSnapping()" class="w-9 h-9 sm:w-auto sm:h-auto px-0 sm:px-3 py-0 sm:py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center sm:space-x-2 border transition bg-emerald-950/80 text-emerald-400 border-emerald-800/80 shadow-sm" aria-label="Toggle snapping">
+        <span id="snapIcon">🧲</span>
+        <span id="snapStatusText" class="hidden sm:inline">Snapping: ON</span>
+      </button>
+
+      <select id="exportScaleSelect" class="bg-slate-900 border border-slate-800 rounded-md pl-1.5 pr-1 py-1.5 sm:px-2 text-xs text-slate-200 w-[52px] sm:w-auto">
+        <option value="1">1x</option>
+        <option value="2" selected>2x</option>
+        <option value="3">3x</option>
+      </select>
+
+      <button id="exportBtn" onclick="exportLayout()" class="h-9 px-2.5 sm:px-4 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-md text-xs font-bold transition shadow-lg shadow-blue-500/20 flex items-center space-x-1.5" aria-label="Export PNG">
+        <span id="exportIcon">📥</span>
+        <span id="exportLabel" class="hidden sm:inline">Export PNG</span>
+      </button>
+
+      <button onclick="openDrawer('right')" class="md:hidden w-9 h-9 shrink-0 relative flex items-center justify-center rounded-lg bg-slate-900 border border-slate-800 text-base" aria-label="Open inspector panel">
+        🎛️
+        <span id="inspectorDot" class="hidden absolute -top-1 -right-1 w-2.5 h-2.5 bg-blue-500 rounded-full border border-slate-950"></span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Workspace -->
+  <div class="flex-1 flex overflow-hidden">
+
+    <!-- Left Sidebar -->
+    <aside id="leftSidebar" class="mobile-drawer w-80 border-r border-slate-800 bg-slate-950 flex flex-col overflow-y-auto p-4 space-y-5 z-10">
+
+      <div class="drawer-mobile-header hidden items-center justify-between -mt-1 mb-1">
+        <h2 class="text-sm font-bold text-slate-200">Tools</h2>
+        <button onclick="closeDrawers()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-900 border border-slate-800 text-slate-400" aria-label="Close">✕</button>
+      </div>
+
+      <div class="grid grid-cols-3 gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800">
+        <button id="tabBtn-grid" onclick="switchLeftTab('grid')" class="py-1.5 text-xs font-semibold rounded-lg bg-blue-600 text-white transition">Grids</button>
+        <button id="tabBtn-text" onclick="switchLeftTab('text')" class="py-1.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition">Text</button>
+        <button id="tabBtn-canvas" onclick="switchLeftTab('canvas')" class="py-1.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition">Canvas</button>
+      </div>
+
+      <!-- TAB 1: GRID -->
+      <div id="tabContent-grid" class="space-y-5">
+        <div>
+          <h2 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2.5">Template Builder</h2>
+          <div class="space-y-3">
+            <div>
+              <div class="flex justify-between text-xs mb-1">
+                <label class="text-slate-300">Cell Count</label>
+                <span id="cellCountVal" class="text-blue-400 font-mono font-bold">4</span>
+              </div>
+              <input type="range" id="cellCountInput" min="2" max="16" value="4" class="w-full bg-slate-800 rounded-lg" oninput="updateCellSlider(this.value)">
+            </div>
+
+            <div class="grid grid-cols-2 gap-2">
+              <button onclick="generateTemplate('bsp')" class="p-2 bg-slate-900 hover:bg-slate-800 rounded-lg text-xs font-medium text-slate-200 border border-slate-800 hover:border-slate-700 transition">BSP Mosaic</button>
+              <button onclick="generateTemplate('hero')" class="p-2 bg-slate-900 hover:bg-slate-800 rounded-lg text-xs font-medium text-slate-200 border border-slate-800 hover:border-slate-700 transition">Hero Layout</button>
+              <button onclick="generateTemplate('grid')" class="p-2 bg-slate-900 hover:bg-slate-800 rounded-lg text-xs font-medium text-slate-200 border border-slate-800 hover:border-slate-700 transition">Equal Grid</button>
+              <button onclick="generateTemplate('rows')" class="p-2 bg-slate-900 hover:bg-slate-800 rounded-lg text-xs font-medium text-slate-200 border border-slate-800 hover:border-slate-700 transition">Vertical Strips</button>
+            </div>
+          </div>
+        </div>
+
+        <hr class="border-slate-800">
+
+        <div>
+          <h2 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2.5">Custom Layout Operations</h2>
+          <div class="grid grid-cols-2 gap-2">
+            <button onclick="splitSelectedCell('v')" class="p-2 bg-slate-900 hover:bg-slate-800 rounded-lg text-xs font-medium text-slate-200 border border-slate-800 transition">✂️ Split Vertically</button>
+            <button onclick="splitSelectedCell('h')" class="p-2 bg-slate-900 hover:bg-slate-800 rounded-lg text-xs font-medium text-slate-200 border border-slate-800 transition">✂️ Split Horizontally</button>
+            <button onclick="addNewCell()" class="p-2 bg-slate-900 hover:bg-slate-800 rounded-lg text-xs font-medium text-slate-200 border border-slate-800 transition">➕ Add Free Cell</button>
+            <button onclick="deleteSelectedCell()" class="p-2 bg-red-950/40 hover:bg-red-900/50 text-red-300 rounded-lg text-xs font-medium border border-red-900/50 transition">🗑️ Delete Cell</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 2: TEXT -->
+      <div id="tabContent-text" class="space-y-4 hidden">
+        <h2 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Add Typography</h2>
+        <div class="space-y-2">
+          <button onclick="addTextElement('heading')" class="w-full p-3 bg-slate-900 hover:bg-slate-800 rounded-lg border border-slate-800 flex items-center justify-between text-left transition group">
+            <span class="text-lg font-bold font-['Montserrat'] text-white">Add Heading</span>
+            <span class="text-xs text-blue-400 group-hover:translate-x-0.5 transition">+</span>
+          </button>
+          <button onclick="addTextElement('subheading')" class="w-full p-2.5 bg-slate-900 hover:bg-slate-800 rounded-lg border border-slate-800 flex items-center justify-between text-left transition group">
+            <span class="text-sm font-semibold text-slate-200">Add Subheading</span>
+            <span class="text-xs text-blue-400 group-hover:translate-x-0.5 transition">+</span>
+          </button>
+          <button onclick="addTextElement('body')" class="w-full p-2 bg-slate-900 hover:bg-slate-800 rounded-lg border border-slate-800 flex items-center justify-between text-left transition group">
+            <span class="text-xs text-slate-400">Add Body Text</span>
+            <span class="text-xs text-blue-400 group-hover:translate-x-0.5 transition">+</span>
+          </button>
+        </div>
+
+        <hr class="border-slate-800">
+
+        <div>
+          <h2 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Custom Fonts</h2>
+          <div class="space-y-2">
+            <label class="block text-[10px] text-slate-400">Load a Google Font by name</label>
+            <div class="flex space-x-2">
+              <input type="text" id="googleFontInput" placeholder="e.g. Bebas Neue" class="flex-1 bg-slate-900 border border-slate-800 rounded px-2 py-1.5 text-xs">
+              <button onclick="loadGoogleFont()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 rounded text-xs font-semibold">Load</button>
+            </div>
+            <label class="block text-[10px] text-slate-400 pt-1">Or upload a font file (.ttf, .otf, .woff, .woff2)</label>
+            <input type="file" id="fontUploader" accept=".ttf,.otf,.woff,.woff2" class="w-full text-xs text-slate-400 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-slate-800 file:text-slate-200" onchange="uploadCustomFont(event)">
+            <p id="fontLoadStatus" class="text-[10px] text-emerald-400 hidden"></p>
+          </div>
+        </div>
+
+        <hr class="border-slate-800 my-3">
+        <div class="text-[11px] text-slate-400 space-y-1">
+          <p class="font-semibold text-slate-300">💡 Quick Tip:</p>
+          <p>Click any text box to customize font, color, shadow, outline and background fill in the right sidebar.</p>
+        </div>
+      </div>
+
+      <!-- TAB 3: CANVAS -->
+      <div id="tabContent-canvas" class="space-y-5 hidden">
+        <div>
+          <h2 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Canvas Size Presets</h2>
+          <div class="grid grid-cols-2 gap-2 mb-3">
+            <button onclick="setCanvasPreset('1:1')" class="p-2 bg-slate-900 hover:bg-slate-800 text-xs rounded border border-slate-800 text-slate-200">Insta Post (1:1)</button>
+            <button onclick="setCanvasPreset('9:16')" class="p-2 bg-slate-900 hover:bg-slate-800 text-xs rounded border border-slate-800 text-slate-200">Story/Reel (9:16)</button>
+            <button onclick="setCanvasPreset('16:9')" class="p-2 bg-slate-900 hover:bg-slate-800 text-xs rounded border border-slate-800 text-slate-200">Landscape (16:9)</button>
+            <button onclick="setCanvasPreset('4:5')" class="p-2 bg-slate-900 hover:bg-slate-800 text-xs rounded border border-slate-800 text-slate-200">Portrait (4:5)</button>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-[10px] text-slate-400 mb-1">Width (px)</label>
+              <input type="number" id="canvasWidthInput" value="700" min="300" max="1600" onchange="updateCanvasCustomSize()" class="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs font-mono">
+            </div>
+            <div>
+              <label class="block text-[10px] text-slate-400 mb-1">Height (px)</label>
+              <input type="number" id="canvasHeightInput" value="700" min="300" max="1600" onchange="updateCanvasCustomSize()" class="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs font-mono">
+            </div>
+          </div>
+        </div>
+
+        <hr class="border-slate-800">
+
+        <div>
+          <h2 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Background Style</h2>
+          <div class="space-y-3">
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">Fill Type</label>
+              <select id="bgTypeSelect" onchange="changeBgType(this.value)" class="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1.5 text-xs text-slate-200">
+                <option value="color">Solid Color</option>
+                <option value="gradient">Linear Gradient</option>
+                <option value="pattern">Pattern Overlay</option>
+                <option value="image">Background Image</option>
+              </select>
+            </div>
+
+            <div id="bgStyle-color" class="bg-style-group">
+              <label class="block text-[10px] text-slate-400 mb-1">Solid Color</label>
+              <div class="flex space-x-2">
+                <input type="color" id="bgColorInput" value="#0f172a" class="w-10 h-8 rounded bg-slate-800 border border-slate-700 cursor-pointer" onchange="updateCanvasBgColor(this.value)">
+                <input type="text" id="bgColorHex" value="#0f172a" class="flex-1 bg-slate-900 border border-slate-800 rounded px-2 text-xs font-mono" readonly>
+              </div>
+            </div>
+
+            <div id="bgStyle-gradient" class="bg-style-group hidden space-y-2">
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-[10px] text-slate-400 mb-1">Color 1</label>
+                  <input type="color" id="bgGrad1" value="#0f172a" class="w-full h-8 rounded bg-slate-800 border border-slate-700 cursor-pointer" onchange="updateCanvasGradient()">
+                </div>
+                <div>
+                  <label class="block text-[10px] text-slate-400 mb-1">Color 2</label>
+                  <input type="color" id="bgGrad2" value="#1e1b4b" class="w-full h-8 rounded bg-slate-800 border border-slate-700 cursor-pointer" onchange="updateCanvasGradient()">
+                </div>
+              </div>
+              <div>
+                <label class="block text-[10px] text-slate-400 mb-1">Angle (degrees)</label>
+                <input type="range" id="bgGradAngle" min="0" max="360" value="135" class="w-full bg-slate-800" oninput="updateCanvasGradient()">
+              </div>
+            </div>
+
+            <div id="bgStyle-pattern" class="bg-style-group hidden">
+              <label class="block text-[10px] text-slate-400 mb-1">Pattern Overlay Style</label>
+              <select id="bgPatternSelect" onchange="updateCanvasPattern(this.value)" class="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1.5 text-xs text-slate-200">
+                <option value="dots">Radial Dots</option>
+                <option value="grid">Grid Mesh</option>
+              </select>
+              <p class="text-[10px] text-slate-500 mt-1">Pattern sits over the solid color below and is included in the exported PNG.</p>
+            </div>
+
+            <div id="bgStyle-image" class="bg-style-group hidden space-y-3">
+              <label class="block text-[10px] text-slate-400 mb-1">Upload Background Image</label>
+              <input type="file" id="bgImageUploader" accept="image/*" class="text-xs text-slate-400 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:bg-blue-600 file:text-white" onchange="uploadBgImage(event)">
+
+              <div id="bgImageAdjust" class="space-y-3 hidden">
+                <button id="bgPanModeBtn" onclick="toggleBgPanMode()" class="w-full py-2 bg-purple-950/50 hover:bg-purple-900/60 text-purple-300 rounded-lg text-xs font-semibold border border-purple-800/60 transition flex items-center justify-center space-x-1.5">
+                  <span>🖐</span><span>Drag to Reposition Background</span>
+                </button>
+                <p class="text-[10px] text-slate-500 -mt-2">While active: drag the canvas to pan, scroll to zoom.</p>
+
+                <div>
+                  <div class="flex justify-between text-xs mb-1">
+                    <span class="text-slate-400">Zoom</span>
+                    <span id="bgZoomVal" class="font-mono text-slate-300">1.0x</span>
+                  </div>
+                  <input type="range" id="bgZoomInput" min="1" max="4" step="0.05" value="1" class="w-full bg-slate-800 rounded-lg" oninput="updateBgImageTransform()">
+                </div>
+                <div>
+                  <div class="flex justify-between text-xs mb-1">
+                    <span class="text-slate-400">Pan X</span>
+                    <span id="bgPanXVal" class="font-mono text-slate-300">0%</span>
+                  </div>
+                  <input type="range" id="bgPanXInput" min="-100" max="100" value="0" class="w-full bg-slate-800 rounded-lg" oninput="updateBgImageTransform()">
+                </div>
+                <div>
+                  <div class="flex justify-between text-xs mb-1">
+                    <span class="text-slate-400">Pan Y</span>
+                    <span id="bgPanYVal" class="font-mono text-slate-300">0%</span>
+                  </div>
+                  <input type="range" id="bgPanYInput" min="-100" max="100" value="0" class="w-full bg-slate-800 rounded-lg" oninput="updateBgImageTransform()">
+                </div>
+                <button onclick="resetBgImageTransform()" class="w-full py-1.5 bg-slate-900 hover:bg-slate-800 rounded text-xs font-medium text-slate-300 border border-slate-800">Center & Fit Background</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <hr class="border-slate-800">
+
+        <div>
+          <h2 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2.5">Grid Global Spacing</h2>
+          <div class="space-y-3">
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">Cell Gap (px)</label>
+              <input type="range" id="gapInput" min="0" max="30" value="8" class="w-full bg-slate-800 rounded-lg" oninput="updateGap(this.value)">
+            </div>
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">Corner Radius (px)</label>
+              <input type="range" id="radiusInput" min="0" max="40" value="8" class="w-full bg-slate-800 rounded-lg" oninput="updateRadius(this.value)">
+            </div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Canvas Workspace -->
+    <main id="canvasWorkspace" class="flex-1 bg-slate-900 bg-workspace-pattern relative overflow-hidden min-w-0">
+      <div id="canvasViewport" class="absolute top-0 left-0 bg-slate-950 shadow-2xl border border-slate-800 overflow-hidden" style="width: 700px; height: 700px; transform-origin: 0 0;">
+        <div id="gridCanvas" class="w-full h-full relative overflow-hidden"></div>
+        <div id="snapGuideV" class="snap-line snap-line-v"></div>
+        <div id="snapGuideH" class="snap-line snap-line-h"></div>
+      </div>
+
+      <!-- Zoom controls -->
+      <div class="absolute bottom-4 right-4 z-20 flex items-center bg-slate-950/90 backdrop-blur border border-slate-800 rounded-full shadow-xl px-1 py-1 space-x-0.5">
+        <button onclick="zoomStep(-1)" class="w-9 h-9 rounded-full hover:bg-slate-800 active:bg-slate-700 flex items-center justify-center text-slate-200 text-lg font-bold" aria-label="Zoom out">−</button>
+        <button onclick="fitToScreen()" id="zoomPercentBtn" class="px-2 h-9 rounded-full hover:bg-slate-800 active:bg-slate-700 text-xs font-mono text-slate-300 min-w-[54px]" aria-label="Reset zoom to fit screen" title="Reset to fit screen">100%</button>
+        <button onclick="zoomStep(1)" class="w-9 h-9 rounded-full hover:bg-slate-800 active:bg-slate-700 flex items-center justify-center text-slate-200 text-lg font-bold" aria-label="Zoom in">+</button>
+      </div>
+    </main>
+
+    <!-- Right Sidebar -->
+    <aside id="rightSidebar" class="mobile-drawer w-80 border-l border-slate-800 bg-slate-950 p-4 flex flex-col space-y-5 overflow-y-auto z-10">
+      <div class="drawer-mobile-header hidden items-center justify-between -mt-1 mb-1">
+        <h2 class="text-sm font-bold text-slate-200">Inspector</h2>
+        <button onclick="closeDrawers()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-900 border border-slate-800 text-slate-400" aria-label="Close">✕</button>
+      </div>
+      <div>
+        <h2 id="inspectorTitle" class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Selected Layer Inspector</h2>
+
+        <div id="noSelectionNotice" class="text-xs text-slate-500 p-4 rounded-lg bg-slate-900/50 border border-slate-800/80 text-center space-y-1">
+          <p>🖱️ No layer selected.</p>
+          <p class="text-[10px] text-slate-600">Click any grid cell or text box to edit properties.</p>
+        </div>
+
+        <!-- CELL CONTROLS -->
+        <div id="cellControls" class="space-y-4 hidden">
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Cell Image</label>
+            <input type="file" id="imageUploader" accept="image/*" class="text-xs text-slate-400 file:mr-2 file:py-1 file:px-2 flex-1 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white" onchange="uploadImage(event)">
+          </div>
+
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Cell Background Color</label>
+            <input type="color" id="cellColorInput" value="#1e293b" class="w-full h-8 rounded bg-slate-800 border border-slate-700 cursor-pointer" onchange="updateSelectedCellColor(this.value)">
+          </div>
+
+          <div>
+            <div class="flex justify-between text-xs mb-1">
+              <span class="text-slate-400">Cell Opacity</span>
+              <span id="cellOpacityVal" class="font-mono text-slate-300">100%</span>
+            </div>
+            <input type="range" id="cellOpacityInput" min="0" max="100" value="100" class="w-full bg-slate-800 rounded-lg" oninput="updateCellOpacity()">
+          </div>
+
+          <div id="imageControlsBlock" class="space-y-4 hidden">
+            <hr class="border-slate-800">
+            <h3 class="text-[11px] font-bold text-blue-400 uppercase tracking-wider">Inner Image Layer</h3>
+
+            <button id="panModeBtn" onclick="togglePanMode()" class="w-full py-2 bg-purple-950/50 hover:bg-purple-900/60 text-purple-300 rounded-lg text-xs font-semibold border border-purple-800/60 transition flex items-center justify-center space-x-1.5">
+              <span>🖐</span><span>Drag to Reposition Image</span>
+            </button>
+            <p class="text-[10px] text-slate-500 -mt-2">While active: drag the cell to pan, scroll to zoom. Click the button again to finish.</p>
+
+            <div>
+              <div class="flex justify-between text-xs mb-1">
+                <span class="text-slate-400">Zoom</span>
+                <span id="zoomVal" class="font-mono text-slate-300">1.0x</span>
+              </div>
+              <input type="range" id="zoomInput" min="1" max="4" step="0.05" value="1" class="w-full bg-slate-800 rounded-lg" oninput="updateImageTransform()">
+            </div>
+
+            <div>
+              <div class="flex justify-between text-xs mb-1">
+                <span class="text-slate-400">Pan X</span>
+                <span id="panXVal" class="font-mono text-slate-300">0%</span>
+              </div>
+              <input type="range" id="panXInput" min="-100" max="100" value="0" class="w-full bg-slate-800 rounded-lg" oninput="updateImageTransform()">
+            </div>
+
+            <div>
+              <div class="flex justify-between text-xs mb-1">
+                <span class="text-slate-400">Pan Y</span>
+                <span id="panYVal" class="font-mono text-slate-300">0%</span>
+              </div>
+              <input type="range" id="panYInput" min="-100" max="100" value="0" class="w-full bg-slate-800 rounded-lg" oninput="updateImageTransform()">
+            </div>
+
+            <button onclick="resetImageTransform()" class="w-full py-1.5 bg-slate-900 hover:bg-slate-800 rounded text-xs font-medium text-slate-300 border border-slate-800">
+              Center & Fit Image
+            </button>
+          </div>
+
+          <hr class="border-slate-800">
+
+          <details class="panel border border-slate-800 rounded-lg p-2.5" open>
+            <summary class="flex items-center justify-between text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+              <span>Border / Outline</span>
+              <span class="chev text-slate-500">▶</span>
+            </summary>
+            <div class="mt-3 space-y-2.5">
+              <label class="flex items-center space-x-2 text-xs text-slate-300">
+                <input type="checkbox" id="cellBorderEnabled" onchange="updateCellBorder()">
+                <span>Enable border</span>
+              </label>
+              <div id="cellBorderOptions" class="space-y-2.5 hidden">
+                <div class="flex items-center space-x-2">
+                  <label class="text-[10px] text-slate-400 w-16">Color</label>
+                  <input type="color" id="cellBorderColor" value="#3b82f6" class="flex-1 h-7 rounded bg-slate-800 border border-slate-700 cursor-pointer" onchange="updateCellBorder()">
+                </div>
+                <div>
+                  <div class="flex justify-between text-[10px] text-slate-400 mb-1">
+                    <span>Width</span><span id="cellBorderWidthVal">2px</span>
+                  </div>
+                  <input type="range" id="cellBorderWidth" min="0" max="20" value="2" class="w-full bg-slate-800 rounded-lg" oninput="updateCellBorder()">
+                </div>
+              </div>
+            </div>
+          </details>
+
+          <details class="panel border border-slate-800 rounded-lg p-2.5">
+            <summary class="flex items-center justify-between text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+              <span>Drop Shadow</span>
+              <span class="chev text-slate-500">▶</span>
+            </summary>
+            <div class="mt-3 space-y-2.5">
+              <label class="flex items-center space-x-2 text-xs text-slate-300">
+                <input type="checkbox" id="cellShadowEnabled" onchange="updateCellShadow()">
+                <span>Enable shadow</span>
+              </label>
+              <div id="cellShadowOptions" class="space-y-2.5 hidden">
+                <div class="flex items-center space-x-2">
+                  <label class="text-[10px] text-slate-400 w-16">Color</label>
+                  <input type="color" id="cellShadowColor" value="#000000" class="flex-1 h-7 rounded bg-slate-800 border border-slate-700 cursor-pointer" onchange="updateCellShadow()">
+                </div>
+                <div>
+                  <div class="flex justify-between text-[10px] text-slate-400 mb-1"><span>Blur</span><span id="cellShadowBlurVal">16px</span></div>
+                  <input type="range" id="cellShadowBlur" min="0" max="60" value="16" class="w-full bg-slate-800 rounded-lg" oninput="updateCellShadow()">
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                  <div>
+                    <div class="flex justify-between text-[10px] text-slate-400 mb-1"><span>Offset X</span></div>
+                    <input type="range" id="cellShadowOffsetX" min="-40" max="40" value="0" class="w-full bg-slate-800 rounded-lg" oninput="updateCellShadow()">
+                  </div>
+                  <div>
+                    <div class="flex justify-between text-[10px] text-slate-400 mb-1"><span>Offset Y</span></div>
+                    <input type="range" id="cellShadowOffsetY" min="-40" max="40" value="8" class="w-full bg-slate-800 rounded-lg" oninput="updateCellShadow()">
+                  </div>
+                </div>
+                <div>
+                  <div class="flex justify-between text-[10px] text-slate-400 mb-1"><span>Opacity</span><span id="cellShadowOpacityVal">45%</span></div>
+                  <input type="range" id="cellShadowOpacity" min="0" max="100" value="45" class="w-full bg-slate-800 rounded-lg" oninput="updateCellShadow()">
+                </div>
+              </div>
+            </div>
+          </details>
+
+          <hr class="border-slate-800">
+
+          <div>
+            <label class="block text-xs text-slate-400 mb-2">Cell Z-Index Layering</label>
+            <div class="flex space-x-2">
+              <button onclick="changeZIndex('cell', 1)" class="flex-1 py-1.5 bg-slate-900 hover:bg-slate-800 rounded text-xs text-slate-300 border border-slate-800">Bring Forward</button>
+              <button onclick="changeZIndex('cell', -1)" class="flex-1 py-1.5 bg-slate-900 hover:bg-slate-800 rounded text-xs text-slate-300 border border-slate-800">Send Backward</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- TEXT CONTROLS -->
+        <div id="textControls" class="space-y-4 hidden">
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Text Content</label>
+            <textarea id="textValInput" rows="2" class="w-full bg-slate-900 border border-slate-800 rounded p-2 text-xs text-white focus:outline-none focus:border-blue-500" oninput="updateSelectedText()"></textarea>
+          </div>
+
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Font Family</label>
+            <select id="fontFamilyInput" onchange="updateSelectedText()" class="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1.5 text-xs text-slate-200">
+              <option value="Inter">Inter (Sans-Serif)</option>
+              <option value="Montserrat">Montserrat (Modern)</option>
+              <option value="Poppins">Poppins (Clean)</option>
+              <option value="Playfair Display">Playfair Display (Serif)</option>
+              <option value="Cinzel">Cinzel (Luxury Serif)</option>
+              <option value="Oswald">Oswald (Bold Display)</option>
+              <option value="Pacifico">Pacifico (Handwritten)</option>
+              <option value="Roboto Mono">Roboto Mono (Monospace)</option>
+            </select>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">Font Size (px)</label>
+              <input type="number" id="fontSizeInput" min="8" max="220" value="32" class="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs font-mono" onchange="updateSelectedText()">
+            </div>
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">Font Weight</label>
+              <select id="fontWeightInput" onchange="updateSelectedText()" class="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs">
+                <option value="300">Light</option>
+                <option value="400">Regular</option>
+                <option value="500">Medium</option>
+                <option value="600">Semibold</option>
+                <option value="700" selected>Bold</option>
+                <option value="800">Extra Bold</option>
+                <option value="900">Black</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">Text Color</label>
+              <input type="color" id="textColorInput" value="#ffffff" class="w-full h-8 rounded bg-slate-800 border border-slate-700 cursor-pointer" onchange="updateSelectedText()">
+            </div>
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">Alignment</label>
+              <div class="flex space-x-1">
+                <button onclick="setTextAlign('left')" class="flex-1 py-1.5 bg-slate-900 border border-slate-800 rounded text-xs text-slate-300">L</button>
+                <button onclick="setTextAlign('center')" class="flex-1 py-1.5 bg-slate-900 border border-slate-800 rounded text-xs text-slate-300">C</button>
+                <button onclick="setTextAlign('right')" class="flex-1 py-1.5 bg-slate-900 border border-slate-800 rounded text-xs text-slate-300">R</button>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Rotation (°)</label>
+            <input type="range" id="textRotateInput" min="-180" max="180" value="0" class="w-full bg-slate-800" oninput="updateSelectedText()">
+          </div>
+
+          <details class="panel border border-slate-800 rounded-lg p-2.5" open>
+            <summary class="flex items-center justify-between text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+              <span>Appearance</span>
+              <span class="chev text-slate-500">▶</span>
+            </summary>
+            <div class="mt-3 space-y-2.5">
+              <div>
+                <div class="flex justify-between text-[10px] text-slate-400 mb-1"><span>Opacity</span><span id="textOpacityVal">100%</span></div>
+                <input type="range" id="textOpacityInput" min="0" max="100" value="100" class="w-full bg-slate-800 rounded-lg" oninput="updateSelectedText()">
+              </div>
+              <div>
+                <div class="flex justify-between text-[10px] text-slate-400 mb-1"><span>Letter Spacing</span><span id="letterSpacingVal">0px</span></div>
+                <input type="range" id="letterSpacingInput" min="-5" max="30" value="0" class="w-full bg-slate-800 rounded-lg" oninput="updateSelectedText()">
+              </div>
+              <div>
+                <div class="flex justify-between text-[10px] text-slate-400 mb-1"><span>Line Height</span><span id="lineHeightVal">1.2</span></div>
+                <input type="range" id="lineHeightInput" min="0.8" max="2.5" step="0.05" value="1.2" class="w-full bg-slate-800 rounded-lg" oninput="updateSelectedText()">
+              </div>
+            </div>
+          </details>
+
+          <details class="panel border border-slate-800 rounded-lg p-2.5">
+            <summary class="flex items-center justify-between text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+              <span>Outline (Stroke)</span>
+              <span class="chev text-slate-500">▶</span>
+            </summary>
+            <div class="mt-3 space-y-2.5">
+              <label class="flex items-center space-x-2 text-xs text-slate-300">
+                <input type="checkbox" id="textStrokeEnabled" onchange="updateSelectedText()">
+                <span>Enable outline</span>
+              </label>
+              <div id="textStrokeOptions" class="space-y-2.5 hidden">
+                <div class="flex items-center space-x-2">
+                  <label class="text-[10px] text-slate-400 w-16">Color</label>
+                  <input type="color" id="textStrokeColor" value="#000000" class="flex-1 h-7 rounded bg-slate-800 border border-slate-700 cursor-pointer" onchange="updateSelectedText()">
+                </div>
+                <div>
+                  <div class="flex justify-between text-[10px] text-slate-400 mb-1"><span>Width</span><span id="textStrokeWidthVal">1px</span></div>
+                  <input type="range" id="textStrokeWidth" min="0" max="10" step="0.5" value="1" class="w-full bg-slate-800 rounded-lg" oninput="updateSelectedText()">
+                </div>
+              </div>
+            </div>
+          </details>
+
+          <details class="panel border border-slate-800 rounded-lg p-2.5">
+            <summary class="flex items-center justify-between text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+              <span>Background Fill</span>
+              <span class="chev text-slate-500">▶</span>
+            </summary>
+            <div class="mt-3 space-y-2.5">
+              <label class="flex items-center space-x-2 text-xs text-slate-300">
+                <input type="checkbox" id="textBgEnabled" onchange="updateSelectedText()">
+                <span>Enable background</span>
+              </label>
+              <div id="textBgOptions" class="space-y-2.5 hidden">
+                <div class="flex items-center space-x-2">
+                  <label class="text-[10px] text-slate-400 w-16">Color</label>
+                  <input type="color" id="textBgColor" value="#000000" class="flex-1 h-7 rounded bg-slate-800 border border-slate-700 cursor-pointer" onchange="updateSelectedText()">
+                </div>
+                <div>
+                  <div class="flex justify-between text-[10px] text-slate-400 mb-1"><span>Opacity</span><span id="textBgOpacityVal">35%</span></div>
+                  <input type="range" id="textBgOpacity" min="0" max="100" value="35" class="w-full bg-slate-800 rounded-lg" oninput="updateSelectedText()">
+                </div>
+              </div>
+            </div>
+          </details>
+
+          <details class="panel border border-slate-800 rounded-lg p-2.5">
+            <summary class="flex items-center justify-between text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+              <span>Shadow</span>
+              <span class="chev text-slate-500">▶</span>
+            </summary>
+            <div class="mt-3 space-y-2.5">
+              <label class="flex items-center space-x-2 text-xs text-slate-300">
+                <input type="checkbox" id="textShadowEnabled" onchange="updateSelectedText()">
+                <span>Enable shadow</span>
+              </label>
+              <div id="textShadowOptions" class="space-y-2.5 hidden">
+                <div class="flex items-center space-x-2">
+                  <label class="text-[10px] text-slate-400 w-16">Color</label>
+                  <input type="color" id="textShadowColor" value="#000000" class="flex-1 h-7 rounded bg-slate-800 border border-slate-700 cursor-pointer" onchange="updateSelectedText()">
+                </div>
+                <div>
+                  <div class="flex justify-between text-[10px] text-slate-400 mb-1"><span>Blur</span><span id="textShadowBlurVal">8px</span></div>
+                  <input type="range" id="textShadowBlur" min="0" max="40" value="8" class="w-full bg-slate-800 rounded-lg" oninput="updateSelectedText()">
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                  <div>
+                    <div class="text-[10px] text-slate-400 mb-1">Offset X</div>
+                    <input type="range" id="textShadowOffsetX" min="-30" max="30" value="0" class="w-full bg-slate-800 rounded-lg" oninput="updateSelectedText()">
+                  </div>
+                  <div>
+                    <div class="text-[10px] text-slate-400 mb-1">Offset Y</div>
+                    <input type="range" id="textShadowOffsetY" min="-30" max="30" value="4" class="w-full bg-slate-800 rounded-lg" oninput="updateSelectedText()">
+                  </div>
+                </div>
+                <div>
+                  <div class="flex justify-between text-[10px] text-slate-400 mb-1"><span>Opacity</span><span id="textShadowOpacityVal">50%</span></div>
+                  <input type="range" id="textShadowOpacity" min="0" max="100" value="50" class="w-full bg-slate-800 rounded-lg" oninput="updateSelectedText()">
+                </div>
+              </div>
+            </div>
+          </details>
+
+          <hr class="border-slate-800">
+
+          <div>
+            <label class="block text-xs text-slate-400 mb-2">Text Layering Order</label>
+            <div class="flex space-x-2">
+              <button onclick="changeZIndex('text', 1)" class="flex-1 py-1.5 bg-slate-900 hover:bg-slate-800 rounded text-xs text-slate-300 border border-slate-800">Bring Forward</button>
+              <button onclick="changeZIndex('text', -1)" class="flex-1 py-1.5 bg-slate-900 hover:bg-slate-800 rounded text-xs text-slate-300 border border-slate-800">Send Backward</button>
+            </div>
+          </div>
+
+          <button onclick="deleteSelectedText()" class="w-full py-1.5 bg-red-950/40 hover:bg-red-900/50 text-red-300 rounded-lg text-xs font-semibold border border-red-900/50 transition">🗑️ Delete Text Box</button>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <div id="mobileBackdrop" class="hidden md:hidden fixed inset-0 bg-black/60 z-30" onclick="closeDrawers()"></div>
+  <div id="toastHost" aria-live="polite"></div>
+
+  <script>
+    // ===================================================================
+    // STATE
+    // ===================================================================
+    function defaultBorder() { return { enabled: false, color: '#3b82f6', width: 2 }; }
+    function defaultShadow() { return { enabled: false, color: '#000000', blur: 16, offsetX: 0, offsetY: 8, opacity: 0.45 }; }
+
+    const state = {
+      canvas: {
+        bgColor: '#0f172a',
+        bgType: 'color',
+        gradient1: '#0f172a',
+        gradient2: '#1e1b4b',
+        gradientAngle: 135,
+        pattern: 'dots',
+        bgImage: null,       // { src, naturalW, naturalH, zoom, panX, panY }
+        gap: 8,
+        borderRadius: 8,
+        width: 700,
+        height: 700,
+        preset: '1:1'
+      },
+      snapEnabled: true,
+      snapThreshold: 1.2,
+      cells: [],
+      texts: [],
+      selectedType: null,
+      selectedId: null,
+      panModeCellId: null,
+      bgPanMode: false,
+      customFonts: [],
+      nextCellId: 1,
+      nextTextId: 1
+    };
+
+    const els = { cells: new Map(), texts: new Map() };
+
+    if (!CanvasRenderingContext2D.prototype.roundRect) {
+      CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
+        if (typeof r === 'number') r = { tl: r, tr: r, br: r, bl: r };
+        this.beginPath();
+        this.moveTo(x + r.tl, y);
+        this.lineTo(x + w - r.tr, y);
+        this.arcTo(x + w, y, x + w, y + r.tr, r.tr);
+        this.lineTo(x + w, y + h - r.br);
+        this.arcTo(x + w, y + h, x + w - r.br, y + h, r.br);
+        this.lineTo(x + r.bl, y + h);
+        this.arcTo(x, y + h, x, y + h - r.bl, r.bl);
+        this.lineTo(x, y + r.tl);
+        this.arcTo(x, y, x + r.tl, y, r.tl);
+        this.closePath();
+        return this;
+      };
+    }
+
+    function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+    function hexToRgb(hex) {
+      hex = (hex || '#000000').replace('#', '');
+      if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+      const num = parseInt(hex, 16) || 0;
+      return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
+    }
+    function hexToRgba(hex, alpha) {
+      const { r, g, b } = hexToRgb(hex);
+      return `rgba(${r},${g},${b},${alpha})`;
+    }
+
+    // ===================================================================
+    // TOASTS (replaces blocking alert() popups)
+    // ===================================================================
+    let toastTimer = null;
+    function showToast(message, type) {
+      const host = document.getElementById('toastHost');
+      host.innerHTML = '';
+      const el = document.createElement('div');
+      el.className = `toast ${type === 'error' ? 'toast-error' : ''}`;
+      el.innerText = message;
+      host.appendChild(el);
+      requestAnimationFrame(() => el.classList.add('show'));
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        el.classList.remove('show');
+        setTimeout(() => { if (el.parentNode) el.parentNode.removeChild(el); }, 200);
+      }, 3000);
+    }
+
+    // ===================================================================
+    // MOBILE DRAWERS (off-canvas Tools / Inspector panels on phone screens)
+    // ===================================================================
+    let activeDrawer = null; // null | 'left' | 'right'
+
+    function openDrawer(side) {
+      activeDrawer = side;
+      syncDrawers();
+    }
+    function closeDrawers() {
+      activeDrawer = null;
+      syncDrawers();
+    }
+    function syncDrawers() {
+      const left = document.getElementById('leftSidebar');
+      const right = document.getElementById('rightSidebar');
+      // const backdrop = document.getElementById('mobileBackdrop'); // <<--------------------------------------||
+      left.classList.toggle('drawer-open', activeDrawer === 'left');
+      right.classList.toggle('drawer-open', activeDrawer === 'right');
+      // backdrop.classList.toggle('hidden', !activeDrawer); // <<--------------------------------------||
+    }
+
+    function updateInspectorDot() {
+      const dot = document.getElementById('inspectorDot');
+      if (!dot) return;
+      dot.classList.toggle('hidden', !state.selectedType);
+    }
+
+    // ===================================================================
+    // Drop the opacity of side panels when holding/changing range inputs
+    // ===================================================================
+    const allRangeInputs = document.querySelectorAll('input[type="range"]');
+    const leftSidePanel = document.getElementById('leftSidebar');
+    const rightSidePanel = document.getElementById('rightSidebar');
+    const DROP_OPACITY = 0.2;
+
+    allRangeInputs.forEach(inp => {
+      // 1. Detect when user starts holding / pressing down
+      inp.addEventListener('pointerdown', () => {
+        leftSidePanel.style.opacity = DROP_OPACITY;
+        rightSidePanel.style.opacity = DROP_OPACITY;
+      });
+
+      // 2. Continuous updates while moving / dragging
+      inp.addEventListener('input', (event) => {
+        leftSidePanel.style.opacity = DROP_OPACITY;
+        rightSidePanel.style.opacity = DROP_OPACITY;
+      });
+
+      // 3. Detect release (triggers final action)
+      inp.addEventListener('change', (event) => {
+        leftSidePanel.style.opacity = 1;
+        rightSidePanel.style.opacity = 1;
+      });
+
+      // 4. Reset state if user releases pointer anywhere
+      inp.addEventListener('pointerup', () => {
+        leftSidePanel.style.opacity = 1;
+        rightSidePanel.style.opacity = 1;
+      });
+    });
+
+    // ===================================================================
+    // CAMERA (zoom + pan) — an infinite-canvas viewport over the artboard.
+    // Design coordinates always stay in real "design pixels" (gaps, radii,
+    // shadow blur, font sizes), and the artboard is positioned/scaled with
+    // a single translate+scale transform computed from camera.zoom/panX/panY.
+    // getBoundingClientRect() reports the post-transform size/position, so
+    // all existing drag/resize/snap math keeps working unmodified at any
+    // zoom level — nothing about those systems needed to change.
+    // ===================================================================
+    const camera = { zoom: 1, panX: 0, panY: 0 };
+    const ZOOM_MIN = 0.08, ZOOM_MAX = 8;
+
+    function computeFitScale() {
+      const workspace = document.getElementById('canvasWorkspace');
+      const PAD = 32;
+      const availW = Math.max(50, workspace.clientWidth - PAD * 2);
+      const availH = Math.max(50, workspace.clientHeight - PAD * 2);
+      return Math.min(availW / state.canvas.width, availH / state.canvas.height);
+    }
+
+    function fitToScreen() {
+      camera.zoom = clamp(computeFitScale(), ZOOM_MIN, ZOOM_MAX);
+      camera.panX = 0;
+      camera.panY = 0;
+      applyCameraTransform();
+    }
+
+    // Applies the current camera state to the DOM. Cheap — call freely.
+    function applyCameraTransform() {
+      const workspace = document.getElementById('canvasWorkspace');
+      const viewport = document.getElementById('canvasViewport');
+      if (!workspace || !viewport) return;
+
+      const centerX = workspace.clientWidth / 2;
+      const centerY = workspace.clientHeight / 2;
+      const scale = camera.zoom;
+
+      viewport.style.width = `${state.canvas.width}px`;
+      viewport.style.height = `${state.canvas.height}px`;
+      const tx = centerX + camera.panX - (state.canvas.width * scale) / 2;
+      const ty = centerY + camera.panY - (state.canvas.height * scale) / 2;
+      viewport.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+
+      // Keep resize/rotate handles a constant, touch-friendly on-screen size
+      // regardless of the current zoom level.
+      const inv = 1 / scale;
+      document.querySelectorAll('.handle').forEach(h => { h.style.transform = `scale(${inv})`; });
+
+      const pctBtn = document.getElementById('zoomPercentBtn');
+      if (pctBtn) pctBtn.innerText = `${Math.round(scale * 100)}%`;
+    }
+
+    // Kept as the name every other part of the app already calls (on resize,
+    // after render(), etc). It now reapplies the *current* camera rather than
+    // recomputing a fit, so window resizes don't fight the user's manual zoom.
+    function updateCanvasScale() { applyCameraTransform(); }
+
+    let scaleRAF = null;
+    function scheduleCanvasScaleUpdate() {
+      if (scaleRAF) cancelAnimationFrame(scaleRAF);
+      scaleRAF = requestAnimationFrame(updateCanvasScale);
+    }
+
+    // --- Anchor-preserving zoom helpers -------------------------------
+    // Converts a point given in #canvasWorkspace-local screen coordinates
+    // into the design-pixel coordinate it currently displays.
+    function screenLocalToCanvasPoint(localX, localY) {
+      const workspace = document.getElementById('canvasWorkspace');
+      const centerX = workspace.clientWidth / 2, centerY = workspace.clientHeight / 2;
+      const scale = camera.zoom;
+      const tx = centerX + camera.panX - (state.canvas.width * scale) / 2;
+      const ty = centerY + camera.panY - (state.canvas.height * scale) / 2;
+      return { x: (localX - tx) / scale, y: (localY - ty) / scale };
+    }
+
+    // Sets zoom/pan so that `canvasPt` (a design-pixel point) lands exactly
+    // at (localX, localY) in workspace-local screen coordinates.
+    function setCameraForAnchor(canvasPt, localX, localY, newZoom) {
+      const workspace = document.getElementById('canvasWorkspace');
+      const centerX = workspace.clientWidth / 2, centerY = workspace.clientHeight / 2;
+      camera.zoom = clamp(newZoom, ZOOM_MIN, ZOOM_MAX);
+      const tx = localX - canvasPt.x * camera.zoom;
+      const ty = localY - canvasPt.y * camera.zoom;
+      camera.panX = tx - centerX + (state.canvas.width * camera.zoom) / 2;
+      camera.panY = ty - centerY + (state.canvas.height * camera.zoom) / 2;
+    }
+
+    // Zoom while keeping whatever canvas point is under (clientX, clientY)
+    // fixed on screen — the standard "zoom toward cursor" behavior.
+    function zoomAt(newZoom, clientX, clientY) {
+      const workspace = document.getElementById('canvasWorkspace');
+      const rect = workspace.getBoundingClientRect();
+      const localX = clientX - rect.left, localY = clientY - rect.top;
+      const canvasPt = screenLocalToCanvasPoint(localX, localY);
+      setCameraForAnchor(canvasPt, localX, localY, newZoom);
+      applyCameraTransform();
+    }
+
+    function zoomStep(dir) {
+      const workspace = document.getElementById('canvasWorkspace');
+      const rect = workspace.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
+      const factor = 1.25;
+      zoomAt(dir > 0 ? camera.zoom * factor : camera.zoom / factor, cx, cy);
+    }
+
+    function isCanvasBackground(target) {
+      return !!target && (target.id === 'canvasViewport' || target.id === 'gridCanvas' || target.id === 'bgLayer');
+    }
+
+    // --- Gesture handling: drag-to-pan (1 pointer on empty background)
+    //     and pinch-to-zoom-and-pan (2 pointers, any target) ---------------
+    const activePointers = new Map();
+    let isPanning = false, panStart = null, panOrigCamera = null, panMoved = false;
+    let pinchPrevDist = null, pinchPrevMidLocal = null;
+    let elementDragActive = false; // set by the per-cell/text drag & resize engines
+
+    function setupCameraGestures() {
+      const workspace = document.getElementById('canvasWorkspace');
+
+      workspace.addEventListener('pointerdown', (e) => {
+        activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+        if (activePointers.size === 1 && !elementDragActive && isCanvasBackground(e.target)) {
+          isPanning = true;
+          panMoved = false;
+          panStart = { x: e.clientX, y: e.clientY };
+          panOrigCamera = { x: camera.panX, y: camera.panY };
+          workspace.classList.add('panning');
+        } else if (activePointers.size === 2) {
+          isPanning = false;
+          pinchPrevDist = null;
+          pinchPrevMidLocal = null;
+        }
+      });
+
+      document.addEventListener('pointermove', (e) => {
+        if (!activePointers.has(e.pointerId)) return;
+        activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+        if (activePointers.size >= 2) {
+          e.preventDefault();
+          const pts = Array.from(activePointers.values()).slice(0, 2);
+          const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+          const midClientX = (pts[0].x + pts[1].x) / 2, midClientY = (pts[0].y + pts[1].y) / 2;
+          const rect = workspace.getBoundingClientRect();
+          const midLocalX = midClientX - rect.left, midLocalY = midClientY - rect.top;
+
+          if (pinchPrevDist != null) {
+            const canvasAnchor = screenLocalToCanvasPoint(pinchPrevMidLocal.x, pinchPrevMidLocal.y);
+            const targetZoom = camera.zoom * (dist / pinchPrevDist);
+            setCameraForAnchor(canvasAnchor, midLocalX, midLocalY, targetZoom);
+            applyCameraTransform();
+          }
+          pinchPrevDist = dist;
+          pinchPrevMidLocal = { x: midLocalX, y: midLocalY };
+        } else if (activePointers.size === 1 && isPanning) {
+          e.preventDefault();
+          const dx = e.clientX - panStart.x, dy = e.clientY - panStart.y;
+          if (Math.abs(dx) > 4 || Math.abs(dy) > 4) panMoved = true;
+          camera.panX = panOrigCamera.x + dx;
+          camera.panY = panOrigCamera.y + dy;
+          applyCameraTransform();
+        }
+      }, { passive: false });
+
+      function endPointer(e) {
+        activePointers.delete(e.pointerId);
+        if (activePointers.size < 2) { pinchPrevDist = null; pinchPrevMidLocal = null; }
+        if (activePointers.size === 0) { isPanning = false; workspace.classList.remove('panning'); }
+      }
+      document.addEventListener('pointerup', endPointer);
+      document.addEventListener('pointercancel', endPointer);
+
+      // Plain wheel/trackpad = zoom toward cursor (standard editor convention).
+      workspace.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const factor = Math.exp(-e.deltaY * 0.0015);
+        zoomAt(camera.zoom * factor, e.clientX, e.clientY);
+      }, { passive: false });
+    }
+
+    // ===================================================================
+    // TAB NAVIGATION
+    // ===================================================================
+    function switchLeftTab(tab) {
+      ['grid', 'text', 'canvas'].forEach(t => {
+        const btn = document.getElementById(`tabBtn-${t}`);
+        const content = document.getElementById(`tabContent-${t}`);
+        if (t === tab) {
+          btn.className = 'py-1.5 text-xs font-semibold rounded-lg bg-blue-600 text-white transition';
+          content.classList.remove('hidden');
+        } else {
+          btn.className = 'py-1.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition';
+          content.classList.add('hidden');
+        }
+      });
+    }
+
+    // ===================================================================
+    // TEMPLATE GENERATORS
+    // ===================================================================
+    function generateBSPTemplate(count) {
+      let rects = [{ x: 0, y: 0, w: 100, h: 100 }];
+      while (rects.length < count) {
+        rects.sort((a, b) => (b.w * b.h) - (a.w * a.h));
+        const target = rects.shift();
+        const splitVertically = target.w > target.h ? true : (target.h > target.w ? false : Math.random() > 0.5);
+        const ratio = 0.4 + Math.random() * 0.2;
+        if (splitVertically) {
+          const w1 = target.w * ratio, w2 = target.w - w1;
+          rects.push({ x: target.x, y: target.y, w: w1, h: target.h });
+          rects.push({ x: target.x + w1, y: target.y, w: w2, h: target.h });
+        } else {
+          const h1 = target.h * ratio, h2 = target.h - h1;
+          rects.push({ x: target.x, y: target.y, w: target.w, h: h1 });
+          rects.push({ x: target.x, y: target.y + h1, w: target.w, h: h2 });
+        }
+      }
+      return rects;
+    }
+
+    function generateHeroTemplate(count) {
+      if (count <= 1) return [{ x: 0, y: 0, w: 100, h: 100 }];
+      const heroWidth = 60;
+      const rects = [{ x: 0, y: 0, w: heroWidth, h: 100 }];
+      const sideCount = count - 1;
+      const sideHeight = 100 / sideCount;
+      for (let i = 0; i < sideCount; i++) rects.push({ x: heroWidth, y: i * sideHeight, w: 100 - heroWidth, h: sideHeight });
+      return rects;
+    }
+
+    function generateGridTemplate(count) {
+      const cols = Math.ceil(Math.sqrt(count));
+      const rows = Math.ceil(count / cols);
+      const w = 100 / cols, h = 100 / rows;
+      const rects = [];
+      for (let i = 0; i < count; i++) {
+        const c = i % cols, r = Math.floor(i / cols);
+        rects.push({ x: c * w, y: r * h, w, h });
+      }
+      return rects;
+    }
+
+    function generateRowsTemplate(count) {
+      const w = 100 / count;
+      const rects = [];
+      for (let i = 0; i < count; i++) rects.push({ x: i * w, y: 0, w, h: 100 });
+      return rects;
+    }
+
+    function generateTemplate(type) {
+      const count = parseInt(document.getElementById('cellCountInput').value, 10);
+      let layout = [];
+      switch (type) {
+        case 'bsp': layout = generateBSPTemplate(count); break;
+        case 'hero': layout = generateHeroTemplate(count); break;
+        case 'grid': layout = generateGridTemplate(count); break;
+        case 'rows': layout = generateRowsTemplate(count); break;
+      }
+      state.cells = layout.map((rect, idx) => ({
+        id: state.nextCellId++, x: rect.x, y: rect.y, w: rect.w, h: rect.h,
+        bg: '#1e293b', zIndex: idx + 1, opacity: 1, image: null,
+        border: defaultBorder(), shadow: defaultShadow()
+      }));
+      deselectAll();
+      render();
+    }
+
+    // ===================================================================
+    // CELL OPERATIONS
+    // ===================================================================
+    function splitSelectedCell(direction) {
+      if (state.selectedType !== 'cell' || !state.selectedId) return showToast('Select a cell layer first.', 'error');
+      const cellIdx = state.cells.findIndex(c => c.id === state.selectedId);
+      if (cellIdx === -1) return;
+      const target = state.cells[cellIdx];
+      let c1, c2;
+      if (direction === 'v') {
+        const halfW = target.w / 2;
+        c1 = { ...target, w: halfW, border: { ...target.border }, shadow: { ...target.shadow } };
+        c2 = { ...target, id: state.nextCellId++, x: target.x + halfW, w: halfW, zIndex: state.cells.length + 1, border: { ...target.border }, shadow: { ...target.shadow } };
+      } else {
+        const halfH = target.h / 2;
+        c1 = { ...target, h: halfH, border: { ...target.border }, shadow: { ...target.shadow } };
+        c2 = { ...target, id: state.nextCellId++, y: target.y + halfH, h: halfH, zIndex: state.cells.length + 1, border: { ...target.border }, shadow: { ...target.shadow } };
+      }
+      state.cells.splice(cellIdx, 1, c1, c2);
+      selectLayer('cell', c1.id);
+    }
+
+    function addNewCell() {
+      const newCell = { id: state.nextCellId++, x: 25, y: 25, w: 50, h: 50, bg: '#334155', zIndex: state.cells.length + 1, opacity: 1, image: null, border: defaultBorder(), shadow: defaultShadow() };
+      state.cells.push(newCell);
+      selectLayer('cell', newCell.id);
+    }
+
+    function deleteSelectedCell() {
+      if (state.selectedType !== 'cell' || !state.selectedId) return;
+      state.cells = state.cells.filter(c => c.id !== state.selectedId);
+      deselectAll();
+    }
+
+    function getSelectedCell() {
+      if (state.selectedType !== 'cell') return null;
+      return state.cells.find(c => c.id === state.selectedId) || null;
+    }
+
+    // ===================================================================
+    // TEXT ENGINE
+    // ===================================================================
+    function addTextElement(type) {
+      let defaults = { text: 'Sample Heading', fontSize: 36, fontWeight: '700', fontFamily: 'Montserrat', color: '#ffffff', w: 50, h: 12 };
+      if (type === 'subheading') defaults = { text: 'Subheading Accent Text', fontSize: 22, fontWeight: '600', fontFamily: 'Inter', color: '#cbd5e1', w: 45, h: 10 };
+      else if (type === 'body') defaults = { text: 'Add your custom body narrative or descriptive text here.', fontSize: 14, fontWeight: '400', fontFamily: 'Inter', color: '#94a3b8', w: 40, h: 12 };
+
+      const newText = {
+        id: state.nextTextId++, text: defaults.text, x: 25, y: 40, w: defaults.w, h: defaults.h,
+        fontSize: defaults.fontSize, fontFamily: defaults.fontFamily, color: defaults.color,
+        fontWeight: defaults.fontWeight, align: 'center', rotation: 0,
+        opacity: 1, letterSpacing: 0, lineHeight: 1.2,
+        strokeEnabled: false, strokeColor: '#000000', strokeWidth: 1,
+        bgEnabled: false, bgColor: '#000000', bgOpacity: 0.35,
+        shadowEnabled: false, shadowColor: '#000000', shadowBlur: 8, shadowOffsetX: 0, shadowOffsetY: 4, shadowOpacity: 0.5,
+        zIndex: 100 + state.texts.length
+      };
+      state.texts.push(newText);
+      selectLayer('text', newText.id);
+    }
+
+    function getSelectedText() {
+      if (state.selectedType !== 'text') return null;
+      return state.texts.find(t => t.id === state.selectedId) || null;
+    }
+
+    function updateSelectedText() {
+      const t = getSelectedText();
+      if (!t) return;
+      t.text = document.getElementById('textValInput').value;
+      t.fontFamily = document.getElementById('fontFamilyInput').value;
+      t.fontSize = parseInt(document.getElementById('fontSizeInput').value, 10) || 16;
+      t.fontWeight = document.getElementById('fontWeightInput').value;
+      t.color = document.getElementById('textColorInput').value;
+      t.rotation = parseInt(document.getElementById('textRotateInput').value, 10) || 0;
+
+      t.opacity = parseInt(document.getElementById('textOpacityInput').value, 10) / 100;
+      t.letterSpacing = parseFloat(document.getElementById('letterSpacingInput').value);
+      t.lineHeight = parseFloat(document.getElementById('lineHeightInput').value);
+
+      t.strokeEnabled = document.getElementById('textStrokeEnabled').checked;
+      t.strokeColor = document.getElementById('textStrokeColor').value;
+      t.strokeWidth = parseFloat(document.getElementById('textStrokeWidth').value);
+
+      t.bgEnabled = document.getElementById('textBgEnabled').checked;
+      t.bgColor = document.getElementById('textBgColor').value;
+      t.bgOpacity = parseInt(document.getElementById('textBgOpacity').value, 10) / 100;
+
+      t.shadowEnabled = document.getElementById('textShadowEnabled').checked;
+      t.shadowColor = document.getElementById('textShadowColor').value;
+      t.shadowBlur = parseInt(document.getElementById('textShadowBlur').value, 10);
+      t.shadowOffsetX = parseInt(document.getElementById('textShadowOffsetX').value, 10);
+      t.shadowOffsetY = parseInt(document.getElementById('textShadowOffsetY').value, 10);
+      t.shadowOpacity = parseInt(document.getElementById('textShadowOpacity').value, 10) / 100;
+
+      document.getElementById('textOpacityVal').innerText = `${Math.round(t.opacity * 100)}%`;
+      document.getElementById('letterSpacingVal').innerText = `${t.letterSpacing}px`;
+      document.getElementById('lineHeightVal').innerText = t.lineHeight.toFixed(2);
+      document.getElementById('textStrokeWidthVal').innerText = `${t.strokeWidth}px`;
+      document.getElementById('textBgOpacityVal').innerText = `${Math.round(t.bgOpacity * 100)}%`;
+      document.getElementById('textShadowBlurVal').innerText = `${t.shadowBlur}px`;
+      document.getElementById('textShadowOpacityVal').innerText = `${Math.round(t.shadowOpacity * 100)}%`;
+
+      document.getElementById('textStrokeOptions').classList.toggle('hidden', !t.strokeEnabled);
+      document.getElementById('textBgOptions').classList.toggle('hidden', !t.bgEnabled);
+      document.getElementById('textShadowOptions').classList.toggle('hidden', !t.shadowEnabled);
+
+      renderTextContent(t);
+      applyTextGeometry(els.texts.get(t.id), t);
+    }
+
+    function setTextAlign(align) {
+      const t = getSelectedText();
+      if (!t) return;
+      t.align = align;
+      renderTextContent(t);
+    }
+
+    function deleteSelectedText() {
+      if (state.selectedType !== 'text') return;
+      state.texts = state.texts.filter(t => t.id !== state.selectedId);
+      deselectAll();
+    }
+
+    // ===================================================================
+    // CUSTOM FONTS
+    // ===================================================================
+    function registerFontOption(family) {
+      if (state.customFonts.includes(family)) return;
+      state.customFonts.push(family);
+      const select = document.getElementById('fontFamilyInput');
+      const opt = document.createElement('option');
+      opt.value = family;
+      opt.innerText = `${family} (Custom)`;
+      select.appendChild(opt);
+    }
+
+    function showFontStatus(msg) {
+      const el = document.getElementById('fontLoadStatus');
+      el.innerText = msg;
+      el.classList.remove('hidden');
+      setTimeout(() => el.classList.add('hidden'), 4000);
+    }
+
+    function loadGoogleFont() {
+      const input = document.getElementById('googleFontInput');
+      const family = input.value.trim();
+      if (!family) return;
+      const linkId = 'gf-' + family.replace(/\s+/g, '-').toLowerCase();
+      if (!document.getElementById(linkId)) {
+        const link = document.createElement('link');
+        link.id = linkId;
+        link.rel = 'stylesheet';
+        link.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(family).replace(/%20/g, '+')}:wght@300;400;500;600;700;800;900&display=swap`;
+        document.head.appendChild(link);
+      }
+      registerFontOption(family);
+      if (document.fonts && document.fonts.load) {
+        document.fonts.load(`16px "${family}"`).catch(() => {});
+      }
+      showFontStatus(`"${family}" added to the Font Family list.`);
+      input.value = '';
+    }
+
+    async function uploadCustomFont(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        const buffer = await file.arrayBuffer();
+        const name = file.name.replace(/\.[^.]+$/, '');
+        const fontFace = new FontFace(name, buffer);
+        await fontFace.load();
+        document.fonts.add(fontFace);
+        registerFontOption(name);
+        showFontStatus(`"${name}" loaded and added to the Font Family list.`);
+      } catch (err) {
+        showToast('Could not load that font file: ' + err.message, 'error');
+      }
+    }
+
+    // ===================================================================
+    // CANVAS / BACKGROUND
+    // ===================================================================
+    function setCanvasPreset(preset) {
+      state.canvas.preset = preset;
+      switch (preset) {
+        case '1:1': state.canvas.width = 700; state.canvas.height = 700; break;
+        case '9:16': state.canvas.width = 450; state.canvas.height = 800; break;
+        case '16:9': state.canvas.width = 800; state.canvas.height = 450; break;
+        case '4:5': state.canvas.width = 560; state.canvas.height = 700; break;
+      }
+      document.getElementById('canvasWidthInput').value = state.canvas.width;
+      document.getElementById('canvasHeightInput').value = state.canvas.height;
+      applyViewportSize();
+      render();
+    }
+
+    function updateCanvasCustomSize() {
+      state.canvas.width = parseInt(document.getElementById('canvasWidthInput').value, 10) || 700;
+      state.canvas.height = parseInt(document.getElementById('canvasHeightInput').value, 10) || 700;
+      applyViewportSize();
+      render();
+    }
+
+    function applyViewportSize() {
+      // Canvas dimensions changed — give the user a fresh fit-to-screen view.
+      fitToScreen();
+    }
+
+    function changeBgType(type) {
+      state.canvas.bgType = type;
+      document.querySelectorAll('.bg-style-group').forEach(el => el.classList.add('hidden'));
+      document.getElementById(`bgStyle-${type}`).classList.remove('hidden');
+      render();
+    }
+
+    function updateCanvasBgColor(color) {
+      state.canvas.bgColor = color;
+      document.getElementById('bgColorHex').value = color;
+      renderBackground();
+    }
+
+    function updateCanvasGradient() {
+      state.canvas.gradient1 = document.getElementById('bgGrad1').value;
+      state.canvas.gradient2 = document.getElementById('bgGrad2').value;
+      state.canvas.gradientAngle = parseInt(document.getElementById('bgGradAngle').value, 10);
+      renderBackground();
+    }
+
+    function updateCanvasPattern(pattern) {
+      state.canvas.pattern = pattern;
+      renderBackground();
+    }
+
+    function uploadBgImage(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      loadImageFile(file).then(({ src, naturalW, naturalH }) => {
+        state.canvas.bgImage = { src, naturalW, naturalH, zoom: 1, panX: 0, panY: 0 };
+        render();
+        document.getElementById('bgImageAdjust').classList.remove('hidden');
+      });
+    }
+
+    function updateGap(val) {
+      state.canvas.gap = parseInt(val, 10);
+      refreshAllGeometry();
+    }
+
+    function updateRadius(val) {
+      state.canvas.borderRadius = parseInt(val, 10);
+      refreshAllGeometry();
+    }
+
+    // ===================================================================
+    // IMAGE LOADING HELPERS
+    // ===================================================================
+    function loadImageFile(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const src = event.target.result;
+          const img = new Image();
+          img.onload = () => resolve({ src, naturalW: img.naturalWidth, naturalH: img.naturalHeight });
+          img.onerror = reject;
+          img.src = src;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    // Resolution-independent "cover" placement, shared by every image layer
+    // (cell images AND the canvas background image) and by both the live
+    // preview and the export renderer.
+    function getImageDrawRect(image, cw, ch) {
+      if (!image || !image.naturalW || !image.naturalH || cw <= 0 || ch <= 0) return null;
+      const baseScale = Math.max(cw / image.naturalW, ch / image.naturalH);
+      const scale = baseScale * (image.zoom || 1);
+      const dispW = image.naturalW * scale;
+      const dispH = image.naturalH * scale;
+      const slackX = Math.max(0, dispW - cw);
+      const slackY = Math.max(0, dispH - ch);
+      const panX = image.panX || 0;
+      const panY = image.panY || 0;
+      const x = (cw - dispW) / 2 + panX * (slackX / 2);
+      const y = (ch - dispH) / 2 + panY * (slackY / 2);
+      return { x, y, w: dispW, h: dispH, slackX, slackY };
+    }
+
+    // Matches the CSS `linear-gradient(angleDeg, ...)` corner-to-corner
+    // formula exactly, so canvas export = on-screen preview at any aspect ratio.
+    function computeCssGradientLine(w, h, angleDeg) {
+      const rad = (angleDeg * Math.PI) / 180;
+      const dx = Math.sin(rad);
+      const dy = -Math.cos(rad);
+      const L = Math.abs(w * dx) + Math.abs(h * dy);
+      const cx = w / 2, cy = h / 2;
+      return {
+        x1: cx - (dx * L) / 2, y1: cy - (dy * L) / 2,
+        x2: cx + (dx * L) / 2, y2: cy + (dy * L) / 2
+      };
+    }
+
+    // ===================================================================
+    // SNAPPING ENGINE
+    // ===================================================================
+    function toggleSnapping() {
+      state.snapEnabled = !state.snapEnabled;
+      const btn = document.getElementById('snapToggleBtn');
+      const text = document.getElementById('snapStatusText');
+      if (state.snapEnabled) {
+        btn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-2 border transition bg-emerald-950/80 text-emerald-400 border-emerald-800/80 shadow-sm";
+        text.innerText = "Snapping: ON";
+      } else {
+        btn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-2 border transition bg-slate-800 text-slate-400 border-slate-700";
+        text.innerText = "Free Flow: OFF";
+      }
+    }
+
+    function getSnapTargets(axis, excludeType, excludeId) {
+      const targets = [0, 50, 100];
+      state.cells.forEach(c => {
+        if (excludeType === 'cell' && c.id === excludeId) return;
+        if (axis === 'x') targets.push(c.x, c.x + c.w, c.x + c.w / 2);
+        else targets.push(c.y, c.y + c.h, c.y + c.h / 2);
+      });
+      state.texts.forEach(t => {
+        if (excludeType === 'text' && t.id === excludeId) return;
+        if (axis === 'x') targets.push(t.x, t.x + t.w, t.x + t.w / 2);
+        else targets.push(t.y, t.y + t.h, t.y + t.h / 2);
+      });
+      return targets;
+    }
+
+    function snapAxisMove(pos, size, targets, threshold) {
+      const candidates = [
+        { raw: pos, offset: 0 },
+        { raw: pos + size, offset: size },
+        { raw: pos + size / 2, offset: size / 2 }
+      ];
+      let best = null;
+      for (const c of candidates) {
+        for (const t of targets) {
+          const d = Math.abs(c.raw - t);
+          if (d < threshold && (!best || d < best.d)) best = { pos: t - c.offset, guide: t, d };
+        }
+      }
+      return best ? { pos: best.pos, guide: best.guide, snapped: true } : { pos, snapped: false };
+    }
+
+    function snapEdge(raw, targets, threshold) {
+      let best = null;
+      for (const t of targets) {
+        const d = Math.abs(raw - t);
+        if (d < threshold && (!best || d < best.d)) best = { value: t, d };
+      }
+      return best ? { value: best.value, snapped: true } : { value: raw, snapped: false };
+    }
+
+    function showGuideLine(dir, percent) {
+      const guide = dir === 'v' ? document.getElementById('snapGuideV') : document.getElementById('snapGuideH');
+      guide.style.display = 'block';
+      if (dir === 'v') guide.style.left = `${percent}%`; else guide.style.top = `${percent}%`;
+    }
+    function hideGuide(dir) {
+      document.getElementById(dir === 'v' ? 'snapGuideV' : 'snapGuideH').style.display = 'none';
+    }
+    function hideGuideLines() { hideGuide('v'); hideGuide('h'); }
+
+    // ===================================================================
+    // RENDERING
+    // ===================================================================
+    function renderBackground() {
+      const bgLayer = document.getElementById('bgLayer');
+      if (!bgLayer) return;
+      bgLayer.className = 'absolute inset-0 pointer-events-none';
+      bgLayer.style.cssText = '';
+      bgLayer.innerHTML = '';
+      const c = state.canvas;
+
+      if (c.bgType === 'color') {
+        bgLayer.style.backgroundColor = c.bgColor;
+      } else if (c.bgType === 'gradient') {
+        bgLayer.style.background = `linear-gradient(${c.gradientAngle}deg, ${c.gradient1}, ${c.gradient2})`;
+      } else if (c.bgType === 'pattern') {
+        bgLayer.style.backgroundColor = c.bgColor;
+        bgLayer.classList.add(c.pattern === 'dots' ? 'bg-pattern-dots' : 'bg-pattern-grid');
+      } else if (c.bgType === 'image' && c.bgImage) {
+        bgLayer.style.backgroundColor = c.bgColor;
+        bgLayer.classList.add('bg-image-layer');
+        const isPan = state.bgPanMode;
+        if (isPan) bgLayer.classList.add('ring-2', 'ring-inset', 'ring-purple-500');
+        bgLayer.style.pointerEvents = isPan ? 'auto' : 'none';
+
+        const imgEl = document.createElement('img');
+        imgEl.src = c.bgImage.src;
+        imgEl.className = 'cell-image';
+        imgEl.draggable = false;
+        bgLayer.appendChild(imgEl);
+        applyBackgroundImageGeometry(imgEl);
+
+        if (isPan) {
+          const hint = document.createElement('div');
+          hint.className = 'pan-hint';
+          hint.innerText = 'Drag to pan • Scroll to zoom';
+          bgLayer.appendChild(hint);
+          attachBgPanHandlers(bgLayer);
+        }
+      } else {
+        bgLayer.style.backgroundColor = c.bgColor;
+      }
+    }
+
+    function applyBackgroundImageGeometry(imgEl) {
+      const c = state.canvas;
+      if (!imgEl || !c.bgImage) return;
+      const rect = getImageDrawRect(c.bgImage, c.width, c.height);
+      if (!rect) return;
+      imgEl.style.maxWidth = 'none';
+      imgEl.style.maxHeight = 'none';
+      imgEl.style.width = `${rect.w}px`;
+      imgEl.style.height = `${rect.h}px`;
+      imgEl.style.left = `${rect.x}px`;
+      imgEl.style.top = `${rect.y}px`;
+    }
+
+    function applyCellGeometry(cellOuterEl, cell) {
+      if (!cellOuterEl) return;
+      const gap = state.canvas.gap;
+      cellOuterEl.style.left = `calc(${cell.x}% + ${gap / 2}px)`;
+      cellOuterEl.style.top = `calc(${cell.y}% + ${gap / 2}px)`;
+      cellOuterEl.style.width = `calc(${cell.w}% - ${gap}px)`;
+      cellOuterEl.style.height = `calc(${cell.h}% - ${gap}px)`;
+      cellOuterEl.style.borderRadius = `${state.canvas.borderRadius}px`;
+      cellOuterEl.style.zIndex = cell.zIndex;
+      cellOuterEl.style.opacity = cell.opacity != null ? cell.opacity : 1;
+
+      cellOuterEl.style.border = (cell.border && cell.border.enabled && cell.border.width > 0)
+        ? `${cell.border.width}px solid ${cell.border.color}` : 'none';
+
+      cellOuterEl.style.boxShadow = (cell.shadow && cell.shadow.enabled)
+        ? `${cell.shadow.offsetX}px ${cell.shadow.offsetY}px ${cell.shadow.blur}px ${hexToRgba(cell.shadow.color, cell.shadow.opacity)}`
+        : 'none';
+
+      const mask = cellOuterEl.querySelector('.cell-mask');
+      if (mask) mask.style.backgroundColor = cell.bg;
+
+      const imgEl = cellOuterEl.querySelector('.cell-image');
+      if (imgEl && cell.image) {
+        const cw = (cell.w / 100) * state.canvas.width - gap;
+        const ch = (cell.h / 100) * state.canvas.height - gap;
+        const rect = getImageDrawRect(cell.image, cw, ch);
+        if (rect) {
+          imgEl.style.maxWidth = 'none';
+          imgEl.style.maxHeight = 'none';
+          imgEl.style.width = `${rect.w}px`;
+          imgEl.style.height = `${rect.h}px`;
+          imgEl.style.left = `${rect.x}px`;
+          imgEl.style.top = `${rect.y}px`;
+        }
+      }
+    }
+
+    function applyTextGeometry(textEl, text) {
+      if (!textEl) return;
+      textEl.style.left = `${text.x}%`;
+      textEl.style.top = `${text.y}%`;
+      textEl.style.width = `${text.w}%`;
+      textEl.style.height = `${text.h}%`;
+      textEl.style.zIndex = text.zIndex;
+      textEl.style.transform = `rotate(${text.rotation}deg)`;
+    }
+
+    function renderTextContent(text) {
+      const textEl = els.texts.get(text.id);
+      if (!textEl) return;
+      const content = textEl.querySelector('.text-content');
+      content.style.fontFamily = `"${text.fontFamily}"`;
+      content.style.fontSize = `${text.fontSize}px`;
+      content.style.fontWeight = text.fontWeight;
+      content.style.color = text.color;
+      content.style.justifyContent = text.align === 'left' ? 'flex-start' : (text.align === 'right' ? 'flex-end' : 'center');
+      content.style.textAlign = text.align;
+      content.innerText = text.text;
+
+      content.style.opacity = text.opacity != null ? text.opacity : 1;
+      content.style.letterSpacing = `${text.letterSpacing || 0}px`;
+      content.style.lineHeight = `${text.lineHeight || 1.2}`;
+      content.style.webkitTextStroke = (text.strokeEnabled && text.strokeWidth > 0)
+        ? `${text.strokeWidth}px ${text.strokeColor}` : '0px transparent';
+      content.style.backgroundColor = text.bgEnabled ? hexToRgba(text.bgColor, text.bgOpacity) : 'transparent';
+      content.style.textShadow = text.shadowEnabled
+        ? `${text.shadowOffsetX}px ${text.shadowOffsetY}px ${text.shadowBlur}px ${hexToRgba(text.shadowColor, text.shadowOpacity)}`
+        : 'none';
+    }
+
+    function render() {
+      const container = document.getElementById('gridCanvas');
+      container.innerHTML = '';
+      els.cells.clear();
+      els.texts.clear();
+
+      const bgLayer = document.createElement('div');
+      bgLayer.id = 'bgLayer';
+      bgLayer.className = 'absolute inset-0 pointer-events-none';
+      container.appendChild(bgLayer);
+      renderBackground();
+
+      state.cells.forEach(cell => {
+        if (!cell.border) cell.border = defaultBorder();
+        if (!cell.shadow) cell.shadow = defaultShadow();
+        if (cell.opacity == null) cell.opacity = 1;
+
+        const isSelected = state.selectedType === 'cell' && cell.id === state.selectedId;
+        const isPanMode = state.panModeCellId === cell.id;
+
+        const cellOuter = document.createElement('div');
+        cellOuter.className = `cell-outer ${isPanMode ? 'ring-2 ring-purple-500 z-50 shadow-xl' : (isSelected ? 'ring-2 ring-blue-500 z-50 shadow-xl cursor-move' : 'cursor-pointer')}`;
+        cellOuter.dataset.cellId = cell.id;
+
+        const mask = document.createElement('div');
+        mask.className = 'cell-mask';
+        cellOuter.appendChild(mask);
+
+        if (cell.image) {
+          const imgEl = document.createElement('img');
+          imgEl.src = cell.image.src;
+          imgEl.className = 'cell-image';
+          imgEl.draggable = false;
+          mask.appendChild(imgEl);
+        } else {
+          const placeholder = document.createElement('div');
+          placeholder.className = 'w-full h-full flex items-center justify-center text-[11px] text-slate-500 font-mono select-none opacity-60';
+          placeholder.innerText = `Cell #${cell.id}`;
+          mask.appendChild(placeholder);
+        }
+
+        if (isPanMode) {
+          const hint = document.createElement('div');
+          hint.className = 'pan-hint';
+          hint.innerText = 'Drag to pan • Scroll to zoom';
+          cellOuter.appendChild(hint);
+        }
+
+        applyCellGeometry(cellOuter, cell);
+
+        cellOuter.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (state.panModeCellId && state.panModeCellId !== cell.id) exitPanMode();
+          selectLayer('cell', cell.id);
+        });
+        cellOuter.addEventListener('dblclick', (e) => {
+          e.stopPropagation();
+          if (cell.image) {
+            selectLayer('cell', cell.id);
+            togglePanMode();
+          }
+        });
+
+        if (isPanMode) {
+          attachPanHandlers(cellOuter, cell);
+        } else if (isSelected) {
+          ['tl', 'tr', 'bl', 'br'].forEach(pos => {
+            const handle = document.createElement('div');
+            handle.className = `handle handle-${pos}`;
+            handle.addEventListener('pointerdown', (e) => startResize(e, cell, 'cell', pos));
+            cellOuter.appendChild(handle);
+          });
+          attachDragHandlers(cellOuter, cell, 'cell');
+        }
+
+        container.appendChild(cellOuter);
+        els.cells.set(cell.id, cellOuter);
+      });
+
+      state.texts.forEach(text => {
+        const isSelected = state.selectedType === 'text' && text.id === state.selectedId;
+        const textEl = document.createElement('div');
+        textEl.className = `text-box ${isSelected ? 'ring-2 ring-blue-500 ring-offset-2 ring-offset-slate-950' : ''}`;
+        textEl.dataset.textId = text.id;
+        applyTextGeometry(textEl, text);
+
+        const content = document.createElement('div');
+        content.className = 'text-content w-full h-full flex items-center px-2 py-1';
+        textEl.appendChild(content);
+
+        textEl.addEventListener('click', (e) => {
+          e.stopPropagation();
+          selectLayer('text', text.id);
+        });
+
+        if (isSelected) {
+          ['tl', 'tr', 'bl', 'br'].forEach(pos => {
+            const handle = document.createElement('div');
+            handle.className = `handle handle-${pos}`;
+            handle.addEventListener('pointerdown', (e) => startResize(e, text, 'text', pos));
+            textEl.appendChild(handle);
+          });
+          attachDragHandlers(textEl, text, 'text');
+        }
+
+        container.appendChild(textEl);
+        els.texts.set(text.id, textEl);
+        renderTextContent(text);
+      });
+
+      scheduleCanvasScaleUpdate(); // sizes any newly-created resize handles correctly
+    }
+
+    function refreshAllGeometry() {
+      state.cells.forEach(cell => applyCellGeometry(els.cells.get(cell.id), cell));
+      state.texts.forEach(text => applyTextGeometry(els.texts.get(text.id), text));
+    }
+
+    // ===================================================================
+    // DRAG (move) ENGINE
+    // ===================================================================
+    function attachDragHandlers(element, item, type) {
+      element.addEventListener('pointerdown', (e) => {
+        if (e.target.classList.contains('handle')) return;
+        e.preventDefault();
+        e.stopPropagation();
+        element.setPointerCapture(e.pointerId);
+        elementDragActive = true;
+
+        const canvasRect = document.getElementById('gridCanvas').getBoundingClientRect();
+        const startX = e.clientX, startY = e.clientY;
+        const orig = { x: item.x, y: item.y };
+        element.classList.add('dragging');
+
+        const onMove = (ev) => {
+          const dxPct = ((ev.clientX - startX) / canvasRect.width) * 100;
+          const dyPct = ((ev.clientY - startY) / canvasRect.height) * 100;
+          let newX = clamp(orig.x + dxPct, 0, 100 - item.w);
+          let newY = clamp(orig.y + dyPct, 0, 100 - item.h);
+
+          hideGuideLines();
+          if (state.snapEnabled) {
+            const targetsX = getSnapTargets('x', type, item.id);
+            const targetsY = getSnapTargets('y', type, item.id);
+            const snapX = snapAxisMove(newX, item.w, targetsX, state.snapThreshold);
+            const snapY = snapAxisMove(newY, item.h, targetsY, state.snapThreshold);
+            if (snapX.snapped) { newX = clamp(snapX.pos, 0, 100 - item.w); showGuideLine('v', snapX.guide); }
+            if (snapY.snapped) { newY = clamp(snapY.pos, 0, 100 - item.h); showGuideLine('h', snapY.guide); }
+          }
+
+          item.x = newX;
+          item.y = newY;
+          if (type === 'cell') applyCellGeometry(element, item);
+          else applyTextGeometry(element, item);
+        };
+
+        const onUp = (ev) => {
+          element.releasePointerCapture(ev.pointerId);
+          element.classList.remove('dragging');
+          elementDragActive = false;
+          hideGuideLines();
+          element.removeEventListener('pointermove', onMove);
+          element.removeEventListener('pointerup', onUp);
+        };
+
+        element.addEventListener('pointermove', onMove);
+        element.addEventListener('pointerup', onUp);
+      });
+    }
+
+    // ===================================================================
+    // RESIZE ENGINE (edge-based, snap-consistent)
+    // ===================================================================
+    function startResize(e, item, type, handlePos) {
+      e.stopPropagation();
+      e.preventDefault();
+      const handle = e.currentTarget;
+      handle.setPointerCapture(e.pointerId);
+      elementDragActive = true;
+
+      const canvasRect = document.getElementById('gridCanvas').getBoundingClientRect();
+      const startX = e.clientX, startY = e.clientY;
+      const orig = { x: item.x, y: item.y, w: item.w, h: item.h };
+      const MIN_SIZE = 4;
+
+      const onMove = (ev) => {
+        const dxPct = ((ev.clientX - startX) / canvasRect.width) * 100;
+        const dyPct = ((ev.clientY - startY) / canvasRect.height) * 100;
+
+        let x = orig.x, y = orig.y, w = orig.w, h = orig.h;
+        const targetsX = state.snapEnabled ? getSnapTargets('x', type, item.id) : [];
+        const targetsY = state.snapEnabled ? getSnapTargets('y', type, item.id) : [];
+        hideGuideLines();
+
+        if (handlePos.includes('r')) {
+          const raw = orig.x + orig.w + dxPct;
+          const snap = state.snapEnabled ? snapEdge(raw, targetsX, state.snapThreshold) : { value: raw, snapped: false };
+          if (snap.snapped) showGuideLine('v', snap.value);
+          w = Math.max(MIN_SIZE, snap.value - x);
+        }
+        if (handlePos.includes('l')) {
+          const raw = orig.x + dxPct;
+          const snap = state.snapEnabled ? snapEdge(raw, targetsX, state.snapThreshold) : { value: raw, snapped: false };
+          if (snap.snapped) showGuideLine('v', snap.value);
+          const newLeft = Math.min(snap.value, orig.x + orig.w - MIN_SIZE);
+          w = (orig.x + orig.w) - newLeft;
+          x = newLeft;
+        }
+        if (handlePos.includes('b')) {
+          const raw = orig.y + orig.h + dyPct;
+          const snap = state.snapEnabled ? snapEdge(raw, targetsY, state.snapThreshold) : { value: raw, snapped: false };
+          if (snap.snapped) showGuideLine('h', snap.value);
+          h = Math.max(MIN_SIZE, snap.value - y);
+        }
+        if (handlePos.includes('t')) {
+          const raw = orig.y + dyPct;
+          const snap = state.snapEnabled ? snapEdge(raw, targetsY, state.snapThreshold) : { value: raw, snapped: false };
+          if (snap.snapped) showGuideLine('h', snap.value);
+          const newTop = Math.min(snap.value, orig.y + orig.h - MIN_SIZE);
+          h = (orig.y + orig.h) - newTop;
+          y = newTop;
+        }
+
+        x = clamp(x, 0, 100 - MIN_SIZE);
+        y = clamp(y, 0, 100 - MIN_SIZE);
+        if (x + w > 100) w = 100 - x;
+        if (y + h > 100) h = 100 - y;
+
+        item.x = x; item.y = y; item.w = w; item.h = h;
+        const el = type === 'cell' ? els.cells.get(item.id) : els.texts.get(item.id);
+        if (type === 'cell') applyCellGeometry(el, item); else applyTextGeometry(el, item);
+      };
+
+      const onUp = (ev) => {
+        handle.releasePointerCapture(ev.pointerId);
+        elementDragActive = false;
+        hideGuideLines();
+        handle.removeEventListener('pointermove', onMove);
+        handle.removeEventListener('pointerup', onUp);
+      };
+
+      handle.addEventListener('pointermove', onMove);
+      handle.addEventListener('pointerup', onUp);
+    }
+
+    // ===================================================================
+    // CELL IMAGE PAN MODE
+    // ===================================================================
+    function togglePanMode() {
+      const cell = getSelectedCell();
+      if (!cell || !cell.image) return;
+      state.panModeCellId = state.panModeCellId === cell.id ? null : cell.id;
+      render();
+      updateInspectorPanel();
+    }
+
+    function exitPanMode() { state.panModeCellId = null; }
+
+    function attachPanHandlers(cellEl, cell) {
+      cellEl.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        cellEl.setPointerCapture(e.pointerId);
+        elementDragActive = true;
+        const gap = state.canvas.gap;
+        const cw = (cell.w / 100) * state.canvas.width - gap;
+        const ch = (cell.h / 100) * state.canvas.height - gap;
+        const rect = getImageDrawRect(cell.image, cw, ch);
+        const startX = e.clientX, startY = e.clientY;
+        const origPan = { x: cell.image.panX || 0, y: cell.image.panY || 0 };
+
+        const onMove = (ev) => {
+          const dx = ev.clientX - startX;
+          const dy = ev.clientY - startY;
+          const newPanX = rect.slackX > 0 ? clamp(origPan.x + dx / (rect.slackX / 2), -1, 1) : 0;
+          const newPanY = rect.slackY > 0 ? clamp(origPan.y + dy / (rect.slackY / 2), -1, 1) : 0;
+          cell.image.panX = newPanX;
+          cell.image.panY = newPanY;
+          applyCellGeometry(cellEl, cell);
+          syncImageInspector(cell);
+        };
+        const onUp = (ev) => {
+          cellEl.releasePointerCapture(ev.pointerId);
+          elementDragActive = false;
+          cellEl.removeEventListener('pointermove', onMove);
+          cellEl.removeEventListener('pointerup', onUp);
+        };
+        cellEl.addEventListener('pointermove', onMove);
+        cellEl.addEventListener('pointerup', onUp);
+      });
+
+      cellEl.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const delta = -e.deltaY * 0.0015;
+        cell.image.zoom = clamp((cell.image.zoom || 1) + delta, 1, 4);
+        applyCellGeometry(cellEl, cell);
+        syncImageInspector(cell);
+      }, { passive: false });
+    }
+
+    function syncImageInspector(cell) {
+      if (state.selectedType !== 'cell' || state.selectedId !== cell.id) return;
+      document.getElementById('zoomInput').value = cell.image.zoom;
+      document.getElementById('panXInput').value = Math.round((cell.image.panX || 0) * 100);
+      document.getElementById('panYInput').value = Math.round((cell.image.panY || 0) * 100);
+      document.getElementById('zoomVal').innerText = `${cell.image.zoom.toFixed(2)}x`;
+      document.getElementById('panXVal').innerText = `${Math.round((cell.image.panX || 0) * 100)}%`;
+      document.getElementById('panYVal').innerText = `${Math.round((cell.image.panY || 0) * 100)}%`;
+    }
+
+    // ===================================================================
+    // BACKGROUND IMAGE PAN MODE
+    // ===================================================================
+    function toggleBgPanMode() {
+      if (!state.canvas.bgImage) return;
+      state.bgPanMode = !state.bgPanMode;
+      renderBackground();
+    }
+
+    function attachBgPanHandlers(bgLayer) {
+      bgLayer.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        bgLayer.setPointerCapture(e.pointerId);
+        elementDragActive = true;
+        const c = state.canvas;
+        const rect = getImageDrawRect(c.bgImage, c.width, c.height);
+        const startX = e.clientX, startY = e.clientY;
+        const origPan = { x: c.bgImage.panX || 0, y: c.bgImage.panY || 0 };
+
+        const onMove = (ev) => {
+          const dx = ev.clientX - startX;
+          const dy = ev.clientY - startY;
+          c.bgImage.panX = rect.slackX > 0 ? clamp(origPan.x + dx / (rect.slackX / 2), -1, 1) : 0;
+          c.bgImage.panY = rect.slackY > 0 ? clamp(origPan.y + dy / (rect.slackY / 2), -1, 1) : 0;
+          applyBackgroundImageGeometry(bgLayer.querySelector('.cell-image'));
+          syncBgImageInspector();
+        };
+        const onUp = (ev) => {
+          bgLayer.releasePointerCapture(ev.pointerId);
+          elementDragActive = false;
+          bgLayer.removeEventListener('pointermove', onMove);
+          bgLayer.removeEventListener('pointerup', onUp);
+        };
+        bgLayer.addEventListener('pointermove', onMove);
+        bgLayer.addEventListener('pointerup', onUp);
+      });
+
+      bgLayer.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const c = state.canvas;
+        const delta = -e.deltaY * 0.0015;
+        c.bgImage.zoom = clamp((c.bgImage.zoom || 1) + delta, 1, 4);
+        applyBackgroundImageGeometry(bgLayer.querySelector('.cell-image'));
+        syncBgImageInspector();
+      }, { passive: false });
+    }
+
+    function syncBgImageInspector() {
+      const img = state.canvas.bgImage;
+      if (!img) return;
+      document.getElementById('bgZoomInput').value = img.zoom;
+      document.getElementById('bgPanXInput').value = Math.round((img.panX || 0) * 100);
+      document.getElementById('bgPanYInput').value = Math.round((img.panY || 0) * 100);
+      document.getElementById('bgZoomVal').innerText = `${img.zoom.toFixed(2)}x`;
+      document.getElementById('bgPanXVal').innerText = `${Math.round((img.panX || 0) * 100)}%`;
+      document.getElementById('bgPanYVal').innerText = `${Math.round((img.panY || 0) * 100)}%`;
+    }
+
+    function updateBgImageTransform() {
+      const c = state.canvas;
+      if (!c.bgImage) return;
+      c.bgImage.zoom = parseFloat(document.getElementById('bgZoomInput').value);
+      c.bgImage.panX = parseInt(document.getElementById('bgPanXInput').value, 10) / 100;
+      c.bgImage.panY = parseInt(document.getElementById('bgPanYInput').value, 10) / 100;
+      document.getElementById('bgZoomVal').innerText = `${c.bgImage.zoom.toFixed(2)}x`;
+      document.getElementById('bgPanXVal').innerText = `${Math.round(c.bgImage.panX * 100)}%`;
+      document.getElementById('bgPanYVal').innerText = `${Math.round(c.bgImage.panY * 100)}%`;
+      applyBackgroundImageGeometry(document.querySelector('#bgLayer .cell-image'));
+    }
+
+    function resetBgImageTransform() {
+      const c = state.canvas;
+      if (!c.bgImage) return;
+      c.bgImage.zoom = 1; c.bgImage.panX = 0; c.bgImage.panY = 0;
+      syncBgImageInspector();
+      applyBackgroundImageGeometry(document.querySelector('#bgLayer .cell-image'));
+    }
+
+    // ===================================================================
+    // SELECTION / INSPECTOR
+    // ===================================================================
+    function selectLayer(type, id) {
+      state.selectedType = type;
+      state.selectedId = id;
+      render();
+      updateInspectorPanel();
+      updateInspectorDot();
+    }
+
+    function deselectAll() {
+      state.selectedType = null;
+      state.selectedId = null;
+      state.panModeCellId = null;
+      render();
+      updateInspectorPanel();
+      updateInspectorDot();
+      closeDrawers();
+    }
+
+    function updateInspectorPanel() {
+      const notice = document.getElementById('noSelectionNotice');
+      const cellControls = document.getElementById('cellControls');
+      const textControls = document.getElementById('textControls');
+      const imageBlock = document.getElementById('imageControlsBlock');
+      const panBtn = document.getElementById('panModeBtn');
+
+      notice.classList.add('hidden');
+      cellControls.classList.add('hidden');
+      textControls.classList.add('hidden');
+
+      if (state.selectedType === 'cell') {
+        const cell = getSelectedCell();
+        if (!cell) return deselectAll();
+
+        cellControls.classList.remove('hidden');
+        document.getElementById('cellColorInput').value = cell.bg;
+        document.getElementById('cellOpacityInput').value = Math.round((cell.opacity != null ? cell.opacity : 1) * 100);
+        document.getElementById('cellOpacityVal').innerText = `${Math.round((cell.opacity != null ? cell.opacity : 1) * 100)}%`;
+
+        document.getElementById('cellBorderEnabled').checked = cell.border.enabled;
+        document.getElementById('cellBorderColor').value = cell.border.color;
+        document.getElementById('cellBorderWidth').value = cell.border.width;
+        document.getElementById('cellBorderWidthVal').innerText = `${cell.border.width}px`;
+        document.getElementById('cellBorderOptions').classList.toggle('hidden', !cell.border.enabled);
+
+        document.getElementById('cellShadowEnabled').checked = cell.shadow.enabled;
+        document.getElementById('cellShadowColor').value = cell.shadow.color;
+        document.getElementById('cellShadowBlur').value = cell.shadow.blur;
+        document.getElementById('cellShadowBlurVal').innerText = `${cell.shadow.blur}px`;
+        document.getElementById('cellShadowOffsetX').value = cell.shadow.offsetX;
+        document.getElementById('cellShadowOffsetY').value = cell.shadow.offsetY;
+        document.getElementById('cellShadowOpacity').value = Math.round(cell.shadow.opacity * 100);
+        document.getElementById('cellShadowOpacityVal').innerText = `${Math.round(cell.shadow.opacity * 100)}%`;
+        document.getElementById('cellShadowOptions').classList.toggle('hidden', !cell.shadow.enabled);
+
+        if (cell.image) {
+          imageBlock.classList.remove('hidden');
+          syncImageInspector(cell);
+          panBtn.classList.toggle('bg-purple-600', state.panModeCellId === cell.id);
+          panBtn.querySelector('span:last-child').innerText = state.panModeCellId === cell.id ? 'Finish Repositioning' : 'Drag to Reposition Image';
+        } else {
+          imageBlock.classList.add('hidden');
+        }
+      } else if (state.selectedType === 'text') {
+        const text = getSelectedText();
+        if (!text) return deselectAll();
+
+        textControls.classList.remove('hidden');
+        document.getElementById('textValInput').value = text.text;
+        document.getElementById('fontFamilyInput').value = text.fontFamily;
+        document.getElementById('fontSizeInput').value = text.fontSize;
+        document.getElementById('fontWeightInput').value = text.fontWeight;
+        document.getElementById('textColorInput').value = text.color;
+        document.getElementById('textRotateInput').value = text.rotation;
+
+        document.getElementById('textOpacityInput').value = Math.round(text.opacity * 100);
+        document.getElementById('textOpacityVal').innerText = `${Math.round(text.opacity * 100)}%`;
+        document.getElementById('letterSpacingInput').value = text.letterSpacing;
+        document.getElementById('letterSpacingVal').innerText = `${text.letterSpacing}px`;
+        document.getElementById('lineHeightInput').value = text.lineHeight;
+        document.getElementById('lineHeightVal').innerText = text.lineHeight.toFixed(2);
+
+        document.getElementById('textStrokeEnabled').checked = text.strokeEnabled;
+        document.getElementById('textStrokeColor').value = text.strokeColor;
+        document.getElementById('textStrokeWidth').value = text.strokeWidth;
+        document.getElementById('textStrokeWidthVal').innerText = `${text.strokeWidth}px`;
+        document.getElementById('textStrokeOptions').classList.toggle('hidden', !text.strokeEnabled);
+
+        document.getElementById('textBgEnabled').checked = text.bgEnabled;
+        document.getElementById('textBgColor').value = text.bgColor;
+        document.getElementById('textBgOpacity').value = Math.round(text.bgOpacity * 100);
+        document.getElementById('textBgOpacityVal').innerText = `${Math.round(text.bgOpacity * 100)}%`;
+        document.getElementById('textBgOptions').classList.toggle('hidden', !text.bgEnabled);
+
+        document.getElementById('textShadowEnabled').checked = text.shadowEnabled;
+        document.getElementById('textShadowColor').value = text.shadowColor;
+        document.getElementById('textShadowBlur').value = text.shadowBlur;
+        document.getElementById('textShadowBlurVal').innerText = `${text.shadowBlur}px`;
+        document.getElementById('textShadowOffsetX').value = text.shadowOffsetX;
+        document.getElementById('textShadowOffsetY').value = text.shadowOffsetY;
+        document.getElementById('textShadowOpacity').value = Math.round(text.shadowOpacity * 100);
+        document.getElementById('textShadowOpacityVal').innerText = `${Math.round(text.shadowOpacity * 100)}%`;
+        document.getElementById('textShadowOptions').classList.toggle('hidden', !text.shadowEnabled);
+      } else {
+        notice.classList.remove('hidden');
+      }
+    }
+
+    // ===================================================================
+    // CELL IMAGE / COLOR / BORDER / SHADOW / Z-INDEX
+    // ===================================================================
+    function uploadImage(e) {
+      const file = e.target.files[0];
+      if (!file || state.selectedType !== 'cell') return;
+      loadImageFile(file).then(({ src, naturalW, naturalH }) => {
+        const cell = getSelectedCell();
+        if (!cell) return;
+        cell.image = { src, naturalW, naturalH, zoom: 1, panX: 0, panY: 0 };
+        render();
+        updateInspectorPanel();
+      });
+    }
+
+    function updateImageTransform() {
+      const cell = getSelectedCell();
+      if (!cell || !cell.image) return;
+      cell.image.zoom = parseFloat(document.getElementById('zoomInput').value);
+      cell.image.panX = parseInt(document.getElementById('panXInput').value, 10) / 100;
+      cell.image.panY = parseInt(document.getElementById('panYInput').value, 10) / 100;
+      document.getElementById('zoomVal').innerText = `${cell.image.zoom.toFixed(2)}x`;
+      document.getElementById('panXVal').innerText = `${Math.round(cell.image.panX * 100)}%`;
+      document.getElementById('panYVal').innerText = `${Math.round(cell.image.panY * 100)}%`;
+      applyCellGeometry(els.cells.get(cell.id), cell);
+    }
+
+    function resetImageTransform() {
+      const cell = getSelectedCell();
+      if (!cell || !cell.image) return;
+      cell.image.zoom = 1; cell.image.panX = 0; cell.image.panY = 0;
+      updateInspectorPanel();
+      applyCellGeometry(els.cells.get(cell.id), cell);
+    }
+
+    function updateSelectedCellColor(color) {
+      const cell = getSelectedCell();
+      if (cell) { cell.bg = color; applyCellGeometry(els.cells.get(cell.id), cell); }
+    }
+
+    function updateCellOpacity() {
+      const cell = getSelectedCell();
+      if (!cell) return;
+      cell.opacity = parseInt(document.getElementById('cellOpacityInput').value, 10) / 100;
+      document.getElementById('cellOpacityVal').innerText = `${Math.round(cell.opacity * 100)}%`;
+      applyCellGeometry(els.cells.get(cell.id), cell);
+    }
+
+    function updateCellBorder() {
+      const cell = getSelectedCell();
+      if (!cell) return;
+      cell.border.enabled = document.getElementById('cellBorderEnabled').checked;
+      cell.border.color = document.getElementById('cellBorderColor').value;
+      cell.border.width = parseInt(document.getElementById('cellBorderWidth').value, 10);
+      document.getElementById('cellBorderWidthVal').innerText = `${cell.border.width}px`;
+      document.getElementById('cellBorderOptions').classList.toggle('hidden', !cell.border.enabled);
+      applyCellGeometry(els.cells.get(cell.id), cell);
+    }
+
+    function updateCellShadow() {
+      const cell = getSelectedCell();
+      if (!cell) return;
+      cell.shadow.enabled = document.getElementById('cellShadowEnabled').checked;
+      cell.shadow.color = document.getElementById('cellShadowColor').value;
+      cell.shadow.blur = parseInt(document.getElementById('cellShadowBlur').value, 10);
+      cell.shadow.offsetX = parseInt(document.getElementById('cellShadowOffsetX').value, 10);
+      cell.shadow.offsetY = parseInt(document.getElementById('cellShadowOffsetY').value, 10);
+      cell.shadow.opacity = parseInt(document.getElementById('cellShadowOpacity').value, 10) / 100;
+      document.getElementById('cellShadowBlurVal').innerText = `${cell.shadow.blur}px`;
+      document.getElementById('cellShadowOpacityVal').innerText = `${Math.round(cell.shadow.opacity * 100)}%`;
+      document.getElementById('cellShadowOptions').classList.toggle('hidden', !cell.shadow.enabled);
+      applyCellGeometry(els.cells.get(cell.id), cell);
+    }
+
+    function changeZIndex(type, delta) {
+      const list = type === 'cell' ? state.cells : state.texts;
+      const item = list.find(x => x.id === state.selectedId);
+      if (item) {
+        item.zIndex = Math.max(1, item.zIndex + delta);
+        const el = type === 'cell' ? els.cells.get(item.id) : els.texts.get(item.id);
+        if (el) el.style.zIndex = item.zIndex;
+      }
+    }
+
+    function updateCellSlider(val) {
+      document.getElementById('cellCountVal').innerText = val;
+    }
+
+    // ===================================================================
+    // HIGH-RESOLUTION EXPORT ENGINE
+    // ===================================================================
+    function preloadImage(src) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = src;
+      });
+    }
+
+    function drawPatternOverlay(ctx, w, h, pattern) {
+      ctx.save();
+      if (pattern === 'dots') {
+        ctx.fillStyle = 'rgba(255,255,255,0.15)';
+        for (let y = 8; y < h; y += 16) {
+          for (let x = 8; x < w; x += 16) {
+            ctx.beginPath();
+            ctx.arc(x, y, 1.5, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+      } else if (pattern === 'grid') {
+        ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+        ctx.lineWidth = 1;
+        for (let x = 0; x <= w; x += 20) {
+          ctx.beginPath(); ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, h); ctx.stroke();
+        }
+        for (let y = 0; y <= h; y += 20) {
+          ctx.beginPath(); ctx.moveTo(0, y + 0.5); ctx.lineTo(w, y + 0.5); ctx.stroke();
+        }
+      }
+      ctx.restore();
+    }
+
+    function wrapAndDrawText(ctx, text, x, maxWidth, fontSize, lineHeightMult, stroke) {
+      const words = text.split(/\s+/);
+      const lines = [];
+      let current = '';
+      for (const word of words) {
+        const test = current ? current + ' ' + word : word;
+        if (ctx.measureText(test).width > maxWidth && current) {
+          lines.push(current);
+          current = word;
+        } else {
+          current = test;
+        }
+      }
+      if (current) lines.push(current);
+      const lineHeight = fontSize * (lineHeightMult || 1.2);
+      const totalHeight = lineHeight * lines.length;
+      lines.forEach((line, i) => {
+        const y = -totalHeight / 2 + lineHeight / 2 + i * lineHeight;
+        if (stroke) ctx.strokeText(line, x, y);
+        ctx.fillText(line, x, y);
+      });
+    }
+
+    async function exportLayout() {
+      const btn = document.getElementById('exportBtn');
+      const icon = document.getElementById('exportIcon');
+      const label = document.getElementById('exportLabel');
+      btn.disabled = true;
+      icon.innerHTML = '<span class="spin inline-block">⏳</span>';
+      label.innerText = 'Rendering…';
+
+      try {
+        const scale = parseFloat(document.getElementById('exportScaleSelect').value) || 2;
+        const w = state.canvas.width;
+        const h = state.canvas.height;
+
+        const exportCanvas = document.createElement('canvas');
+        exportCanvas.width = Math.round(w * scale);
+        exportCanvas.height = Math.round(h * scale);
+        const ctx = exportCanvas.getContext('2d');
+        ctx.scale(scale, scale);
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+
+        const cellImages = {};
+        await Promise.all(state.cells.filter(c => c.image).map(async c => {
+          cellImages[c.id] = await preloadImage(c.image.src);
+        }));
+        let bgImg = null;
+        if (state.canvas.bgType === 'image' && state.canvas.bgImage) {
+          bgImg = await preloadImage(state.canvas.bgImage.src);
+        }
+
+        if (document.fonts && document.fonts.ready) {
+          await document.fonts.ready;
+        }
+
+        // 1. Background
+        const c = state.canvas;
+        if (c.bgType === 'gradient') {
+          const line = computeCssGradientLine(w, h, c.gradientAngle);
+          const grad = ctx.createLinearGradient(line.x1, line.y1, line.x2, line.y2);
+          grad.addColorStop(0, c.gradient1);
+          grad.addColorStop(1, c.gradient2);
+          ctx.fillStyle = grad;
+          ctx.fillRect(0, 0, w, h);
+        } else if (c.bgType === 'image' && bgImg) {
+          ctx.fillStyle = c.bgColor;
+          ctx.fillRect(0, 0, w, h);
+          const rect = getImageDrawRect(
+            { naturalW: bgImg.naturalWidth, naturalH: bgImg.naturalHeight, zoom: c.bgImage.zoom, panX: c.bgImage.panX, panY: c.bgImage.panY },
+            w, h
+          );
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(0, 0, w, h);
+          ctx.clip();
+          ctx.drawImage(bgImg, rect.x, rect.y, rect.w, rect.h);
+          ctx.restore();
+        } else {
+          ctx.fillStyle = c.bgColor;
+          ctx.fillRect(0, 0, w, h);
+          if (c.bgType === 'pattern') drawPatternOverlay(ctx, w, h, c.pattern);
+        }
+
+        // 2. Cells
+        const sortedCells = [...state.cells].sort((a, b) => a.zIndex - b.zIndex);
+        for (const cell of sortedCells) {
+          const gap = c.gap;
+          const cx = (cell.x / 100) * w + gap / 2;
+          const cy = (cell.y / 100) * h + gap / 2;
+          const cw = (cell.w / 100) * w - gap;
+          const ch = (cell.h / 100) * h - gap;
+          const r = Math.min(c.borderRadius, cw / 2, ch / 2);
+          const cellOpacity = cell.opacity != null ? cell.opacity : 1;
+
+          ctx.save();
+          ctx.globalAlpha = cellOpacity;
+
+          // Shadow pass (unclipped, so blur isn't cut off)
+          if (cell.shadow && cell.shadow.enabled) {
+            ctx.save();
+            ctx.shadowColor = hexToRgba(cell.shadow.color, cell.shadow.opacity);
+            ctx.shadowBlur = cell.shadow.blur;
+            ctx.shadowOffsetX = cell.shadow.offsetX;
+            ctx.shadowOffsetY = cell.shadow.offsetY;
+            ctx.fillStyle = cell.bg;
+            ctx.beginPath();
+            ctx.roundRect(cx, cy, cw, ch, Math.max(0, r));
+            ctx.fill();
+            ctx.restore();
+          }
+
+          // Fill + image (clipped)
+          ctx.save();
+          ctx.beginPath();
+          ctx.roundRect(cx, cy, cw, ch, Math.max(0, r));
+          ctx.clip();
+          ctx.fillStyle = cell.bg;
+          ctx.fillRect(cx, cy, cw, ch);
+          if (cell.image && cellImages[cell.id]) {
+            const rect = getImageDrawRect(cell.image, cw, ch);
+            if (rect) ctx.drawImage(cellImages[cell.id], cx + rect.x, cy + rect.y, rect.w, rect.h);
+          }
+          ctx.restore();
+
+          // Border pass (on top, unclipped)
+          if (cell.border && cell.border.enabled && cell.border.width > 0) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.roundRect(cx, cy, cw, ch, Math.max(0, r));
+            ctx.lineWidth = cell.border.width;
+            ctx.strokeStyle = cell.border.color;
+            ctx.stroke();
+            ctx.restore();
+          }
+
+          ctx.restore();
+        }
+
+        // 3. Text
+        const sortedTexts = [...state.texts].sort((a, b) => a.zIndex - b.zIndex);
+        for (const text of sortedTexts) {
+          const tx = (text.x / 100) * w, ty = (text.y / 100) * h;
+          const tw = (text.w / 100) * w, th = (text.h / 100) * h;
+
+          ctx.save();
+          ctx.translate(tx + tw / 2, ty + th / 2);
+          ctx.rotate((text.rotation * Math.PI) / 180);
+          ctx.globalAlpha = text.opacity != null ? text.opacity : 1;
+
+          if (text.bgEnabled) {
+            ctx.save();
+            ctx.fillStyle = hexToRgba(text.bgColor, text.bgOpacity);
+            ctx.fillRect(-tw / 2, -th / 2, tw, th);
+            ctx.restore();
+          }
+
+          ctx.font = `${text.fontWeight} ${text.fontSize}px "${text.fontFamily}", sans-serif`;
+          if ('letterSpacing' in ctx) ctx.letterSpacing = `${text.letterSpacing || 0}px`;
+          ctx.textAlign = text.align;
+          ctx.textBaseline = 'middle';
+
+          let drawX = 0;
+          if (text.align === 'left') drawX = -tw / 2 + 10;
+          else if (text.align === 'right') drawX = tw / 2 - 10;
+
+          if (text.shadowEnabled) {
+            ctx.shadowColor = hexToRgba(text.shadowColor, text.shadowOpacity);
+            ctx.shadowBlur = text.shadowBlur;
+            ctx.shadowOffsetX = text.shadowOffsetX;
+            ctx.shadowOffsetY = text.shadowOffsetY;
+          }
+
+          ctx.fillStyle = text.color;
+          if (text.strokeEnabled && text.strokeWidth > 0) {
+            ctx.strokeStyle = text.strokeColor;
+            ctx.lineWidth = text.strokeWidth * 2; // canvas centers the stroke; double it so the visible outline matches the CSS -webkit-text-stroke width
+            ctx.lineJoin = 'round';
+          }
+
+          wrapAndDrawText(ctx, text.text, drawX, tw - 20, text.fontSize, text.lineHeight, text.strokeEnabled && text.strokeWidth > 0);
+          ctx.restore();
+        }
+
+        const link = document.createElement('a');
+        link.download = `grid-design-${Date.now()}.png`;
+        link.href = exportCanvas.toDataURL('image/png');
+        link.click();
+      } catch (err) {
+        console.error(err);
+        showToast('Export failed: ' + err.message, 'error');
+      } finally {
+        btn.disabled = false;
+        icon.innerText = '📥';
+        label.innerText = 'Export PNG';
+      }
+    }
+
+    // ===================================================================
+    // GLOBAL INTERACTIONS
+    // ===================================================================
+    document.getElementById('canvasViewport').addEventListener('click', (e) => {
+      if (panMoved) { panMoved = false; return; } // don't deselect after a canvas pan drag
+      if (isCanvasBackground(e.target)) deselectAll();
+    });
+
+    document.addEventListener('keydown', (e) => {
+      const tag = (e.target.tagName || '').toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+      if (e.key === 'Escape') {
+        if (activeDrawer) closeDrawers();
+        else if (state.panModeCellId) { exitPanMode(); render(); updateInspectorPanel(); }
+        else deselectAll();
+      }
+      if ((e.key === 'Delete' || e.key === 'Backspace') && state.selectedType) {
+        e.preventDefault();
+        if (state.selectedType === 'cell') deleteSelectedCell();
+        else deleteSelectedText();
+      }
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key === '0') { e.preventDefault(); fitToScreen(); }
+        else if (e.key === '=' || e.key === '+') { e.preventDefault(); zoomStep(1); }
+        else if (e.key === '-') { e.preventDefault(); zoomStep(-1); }
+      }
+    });
+
+    // Reapply the current camera (not a re-fit) on layout changes so window
+    // resizes / orientation changes don't fight the user's manual zoom/pan.
+    if (window.ResizeObserver) {
+      new ResizeObserver(scheduleCanvasScaleUpdate).observe(document.getElementById('canvasWorkspace'));
+    } else {
+      window.addEventListener('resize', scheduleCanvasScaleUpdate);
+    }
+    window.addEventListener('orientationchange', scheduleCanvasScaleUpdate);
+
+    // Initialize
+    setupCameraGestures();
+    generateTemplate('bsp');
+    fitToScreen();
+  </script>
+</body>
+</html>
