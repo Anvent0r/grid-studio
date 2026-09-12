@@ -31,6 +31,14 @@
     .handle-bl { bottom: -6px; left: -6px; cursor: nesw-resize; }
     .handle-br { bottom: -6px; right: -6px; cursor: nwse-resize; }
 
+    .cell-outer.drop-target { outline: 3px dashed #3b82f6; outline-offset: -3px; }
+    #canvasWorkspace.bg-drop-active::after {
+      content: 'Drop image to set as background';
+      position: absolute; inset: 16px; border: 3px dashed #3b82f6; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center; color: #93c5fd;
+      font-size: 13px; font-weight: 600; background: rgba(15,23,42,.5); pointer-events: none; z-index: 25;
+    }
+
     .pan-hint {
       position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
       background: rgba(15,23,42,0.35); color: #fff; font-size: 11px; font-weight: 600;
@@ -82,7 +90,7 @@
         z-index: 40;
         width: 88vw;
         max-width: 340px;
-        transition: transform .22s ease;
+        transition: transform .22s ease, opacity .18s ease;
         box-shadow: 0 10px 40px rgba(0,0,0,.55);
         padding-bottom: env(safe-area-inset-bottom);
       }
@@ -91,6 +99,7 @@
       #rightSidebar.mobile-drawer { right: 0; transform: translateX(105%); }
       #rightSidebar.mobile-drawer.drawer-open { transform: translateX(0); }
       .drawer-mobile-header { display: flex !important; }
+      .mobile-drawer.fade-for-preview { opacity: 0.16; }
     }
     @media (min-width: 768px) {
       .mobile-drawer { position: static !important; transform: none !important; box-shadow: none !important; width: 320px; }
@@ -100,7 +109,8 @@
     #canvasWorkspace { touch-action: none; cursor: grab; }
     #canvasWorkspace.panning { cursor: grabbing; }
 
-    #mobileBackdrop { position: fixed; left: 0; right: 0; bottom: 0; top: calc(56px + env(safe-area-inset-top)); z-index: 30; }
+    /* Panels are non-modal on mobile: no full-screen blocking backdrop, so
+       the canvas stays interactive while a drawer is open. */
 
     /* Resize/rotate handles get real touch targets on coarse pointers (fingers) */
     @media (pointer: coarse) {
@@ -141,16 +151,58 @@
         <span id="snapStatusText" class="hidden sm:inline">Snapping: ON</span>
       </button>
 
-      <select id="exportScaleSelect" class="bg-slate-900 border border-slate-800 rounded-md pl-1.5 pr-1 py-1.5 sm:px-2 text-xs text-slate-200 w-[52px] sm:w-auto">
-        <option value="1">1x</option>
-        <option value="2" selected>2x</option>
-        <option value="3">3x</option>
-      </select>
+      <div class="relative">
+        <button id="exportBtn" onclick="toggleExportMenu()" class="h-9 px-2.5 sm:px-4 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-md text-xs font-bold transition shadow-lg shadow-blue-500/20 flex items-center space-x-1.5" aria-label="Export">
+          <span id="exportIcon">📥</span>
+          <span class="hidden sm:inline">Export</span>
+        </button>
 
-      <button id="exportBtn" onclick="exportLayout()" class="h-9 px-2.5 sm:px-4 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-md text-xs font-bold transition shadow-lg shadow-blue-500/20 flex items-center space-x-1.5" aria-label="Export PNG">
-        <span id="exportIcon">📥</span>
-        <span id="exportLabel" class="hidden sm:inline">Export PNG</span>
-      </button>
+        <div id="exportMenu" class="hidden absolute right-0 mt-2 w-72 max-w-[85vw] bg-slate-950 border border-slate-800 rounded-xl shadow-2xl z-50 overflow-hidden">
+          <div class="grid grid-cols-2 gap-1 bg-slate-900 p-1 m-2 rounded-lg border border-slate-800">
+            <button id="exportTabBtn-image" onclick="switchExportTab('image')" class="py-1.5 text-xs font-semibold rounded-md bg-blue-600 text-white transition">Image</button>
+            <button id="exportTabBtn-project" onclick="switchExportTab('project')" class="py-1.5 text-xs font-semibold rounded-md text-slate-400 hover:text-white transition">Project File</button>
+          </div>
+
+          <div id="exportTab-image" class="px-4 pb-4 space-y-3">
+            <div>
+              <label class="block text-[10px] text-slate-400 mb-1">Format</label>
+              <select id="exportFormatSelect" onchange="onExportFormatChange()" class="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1.5 text-xs text-slate-200">
+                <option value="png">PNG (best quality, supports transparency)</option>
+                <option value="jpeg">JPEG (smaller file size)</option>
+                <option value="pdf">PDF (for print/documents)</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[10px] text-slate-400 mb-1">Resolution</label>
+              <select id="exportScaleSelect" class="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1.5 text-xs text-slate-200">
+                <option value="1">1x</option>
+                <option value="2" selected>2x (Sharp)</option>
+                <option value="3">3x (Print)</option>
+              </select>
+            </div>
+            <div id="exportQualityRow" class="hidden">
+              <div class="flex justify-between text-[10px] text-slate-400 mb-1"><span>JPEG Quality</span><span id="exportQualityVal">92%</span></div>
+              <input type="range" id="exportQualityInput" min="40" max="100" value="92" class="w-full bg-slate-800 rounded-lg" oninput="document.getElementById('exportQualityVal').innerText = this.value + '%'">
+            </div>
+            <button id="exportDownloadBtn" onclick="exportLayout()" class="w-full py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-xs font-bold transition flex items-center justify-center space-x-1.5">
+              <span id="exportDownloadIcon">📥</span>
+              <span id="exportDownloadLabel">Download PNG</span>
+            </button>
+          </div>
+
+          <div id="exportTab-project" class="hidden px-4 pb-4 space-y-3">
+            <p class="text-[11px] text-slate-400">Save your whole project — every cell, image, and text style — to a file you can reopen here later to keep editing.</p>
+            <button onclick="saveProject()" class="w-full py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs font-semibold text-slate-200 border border-slate-700 flex items-center justify-center space-x-1.5">
+              <span>💾</span><span>Save Project (.json)</span>
+            </button>
+            <label class="w-full py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs font-semibold text-slate-200 border border-slate-700 flex items-center justify-center space-x-1.5 cursor-pointer">
+              <span>📂</span><span>Load Project</span>
+              <input type="file" accept="application/json" class="hidden" onchange="loadProjectFile(event)">
+            </label>
+            <p class="text-[10px] text-slate-500">Uploaded custom fonts aren't saved with the project — Google Fonts loaded by name are restored automatically.</p>
+          </div>
+        </div>
+      </div>
 
       <button onclick="openDrawer('right')" class="md:hidden w-9 h-9 shrink-0 relative flex items-center justify-center rounded-lg bg-slate-900 border border-slate-800 text-base" aria-label="Open inspector panel">
         🎛️
@@ -326,6 +378,11 @@
             <div id="bgStyle-image" class="bg-style-group hidden space-y-3">
               <label class="block text-[10px] text-slate-400 mb-1">Upload Background Image</label>
               <input type="file" id="bgImageUploader" accept="image/*" class="text-xs text-slate-400 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:bg-blue-600 file:text-white" onchange="uploadBgImage(event)">
+              <div class="flex space-x-2">
+                <input type="text" id="bgImageUrlInput" placeholder="…or paste an image URL" class="flex-1 min-w-0 bg-slate-900 border border-slate-800 rounded px-2 py-1.5 text-xs">
+                <button onclick="importBgImageFromUrl()" class="shrink-0 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-xs font-semibold text-slate-200 border border-slate-700">Import</button>
+              </div>
+              <p class="text-[10px] text-slate-500">Or drag an image directly onto the canvas.</p>
 
               <div id="bgImageAdjust" class="space-y-3 hidden">
                 <button id="bgPanModeBtn" onclick="toggleBgPanMode()" class="w-full py-2 bg-purple-950/50 hover:bg-purple-900/60 text-purple-300 rounded-lg text-xs font-semibold border border-purple-800/60 transition flex items-center justify-center space-x-1.5">
@@ -387,7 +444,7 @@
       </div>
 
       <!-- Zoom controls -->
-      <div class="absolute bottom-4 right-4 z-20 flex items-center bg-slate-950/90 backdrop-blur border border-slate-800 rounded-full shadow-xl px-1 py-1 space-x-0.5">
+      <div class="hidden md:flex absolute bottom-4 right-4 z-20 items-center bg-slate-950/90 backdrop-blur border border-slate-800 rounded-full shadow-xl px-1 py-1 space-x-0.5">
         <button onclick="zoomStep(-1)" class="w-9 h-9 rounded-full hover:bg-slate-800 active:bg-slate-700 flex items-center justify-center text-slate-200 text-lg font-bold" aria-label="Zoom out">−</button>
         <button onclick="fitToScreen()" id="zoomPercentBtn" class="px-2 h-9 rounded-full hover:bg-slate-800 active:bg-slate-700 text-xs font-mono text-slate-300 min-w-[54px]" aria-label="Reset zoom to fit screen" title="Reset to fit screen">100%</button>
         <button onclick="zoomStep(1)" class="w-9 h-9 rounded-full hover:bg-slate-800 active:bg-slate-700 flex items-center justify-center text-slate-200 text-lg font-bold" aria-label="Zoom in">+</button>
@@ -413,11 +470,25 @@
           <div>
             <label class="block text-xs text-slate-400 mb-1">Cell Image</label>
             <input type="file" id="imageUploader" accept="image/*" class="text-xs text-slate-400 file:mr-2 file:py-1 file:px-2 flex-1 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white" onchange="uploadImage(event)">
+            <div class="flex space-x-2 mt-2">
+              <input type="text" id="cellImageUrlInput" placeholder="…or paste an image URL" class="flex-1 min-w-0 bg-slate-900 border border-slate-800 rounded px-2 py-1.5 text-xs">
+              <button onclick="importCellImageFromUrl()" class="shrink-0 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-xs font-semibold text-slate-200 border border-slate-700">Import</button>
+            </div>
+            <p class="text-[10px] text-slate-500 mt-1">You can also drag an image file (or drag one from another tab) directly onto the cell.</p>
           </div>
 
           <div>
             <label class="block text-xs text-slate-400 mb-1">Cell Background Color</label>
             <input type="color" id="cellColorInput" value="#1e293b" class="w-full h-8 rounded bg-slate-800 border border-slate-700 cursor-pointer" onchange="updateSelectedCellColor(this.value)">
+          </div>
+
+          <div>
+            <div class="flex justify-between text-xs mb-1">
+              <span class="text-slate-400">Background Fill Opacity</span>
+              <span id="cellBgOpacityVal" class="font-mono text-slate-300">100%</span>
+            </div>
+            <input type="range" id="cellBgOpacityInput" min="0" max="100" value="100" class="w-full bg-slate-800 rounded-lg" oninput="updateCellBgOpacity()">
+            <p class="text-[10px] text-slate-500 mt-1">Lower this if you're using a transparent PNG — it controls just the solid color behind the image, not the image itself.</p>
           </div>
 
           <div>
@@ -721,7 +792,6 @@
     </aside>
   </div>
 
-  <div id="mobileBackdrop" class="hidden md:hidden fixed inset-0 bg-black/60 z-30" onclick="closeDrawers()"></div>
   <div id="toastHost" aria-live="polite"></div>
 
   <script>
@@ -826,10 +896,27 @@
     function syncDrawers() {
       const left = document.getElementById('leftSidebar');
       const right = document.getElementById('rightSidebar');
-      // const backdrop = document.getElementById('mobileBackdrop'); // <<--------------------------------------||
       left.classList.toggle('drawer-open', activeDrawer === 'left');
       right.classList.toggle('drawer-open', activeDrawer === 'right');
-      // backdrop.classList.toggle('hidden', !activeDrawer); // <<--------------------------------------||
+    }
+
+    // Panels fade translucent (mobile only) while the user is actively
+    // dragging one of their own sliders, so the canvas stays visible behind
+    // it for a live preview, then fade back in on release.
+    function isMobileLayout() {
+      return window.matchMedia('(max-width: 767px)').matches;
+    }
+    function setDrawerFade(active) {
+      if (!isMobileLayout()) return;
+      document.getElementById('leftSidebar').classList.toggle('fade-for-preview', active);
+      document.getElementById('rightSidebar').classList.toggle('fade-for-preview', active);
+    }
+    function initSliderFadeBehavior() {
+      document.querySelectorAll('input[type="range"]').forEach((inp) => {
+        inp.addEventListener('pointerdown', () => setDrawerFade(true));
+        inp.addEventListener('pointerup', () => setDrawerFade(false));
+        inp.addEventListener('pointercancel', () => setDrawerFade(false));
+      });
     }
 
     function updateInspectorDot() {
@@ -837,40 +924,6 @@
       if (!dot) return;
       dot.classList.toggle('hidden', !state.selectedType);
     }
-
-    // ===================================================================
-    // Drop the opacity of side panels when holding/changing range inputs
-    // ===================================================================
-    const allRangeInputs = document.querySelectorAll('input[type="range"]');
-    const leftSidePanel = document.getElementById('leftSidebar');
-    const rightSidePanel = document.getElementById('rightSidebar');
-    const DROP_OPACITY = 0.2;
-
-    allRangeInputs.forEach(inp => {
-      // 1. Detect when user starts holding / pressing down
-      inp.addEventListener('pointerdown', () => {
-        leftSidePanel.style.opacity = DROP_OPACITY;
-        rightSidePanel.style.opacity = DROP_OPACITY;
-      });
-
-      // 2. Continuous updates while moving / dragging
-      inp.addEventListener('input', (event) => {
-        leftSidePanel.style.opacity = DROP_OPACITY;
-        rightSidePanel.style.opacity = DROP_OPACITY;
-      });
-
-      // 3. Detect release (triggers final action)
-      inp.addEventListener('change', (event) => {
-        leftSidePanel.style.opacity = 1;
-        rightSidePanel.style.opacity = 1;
-      });
-
-      // 4. Reset state if user releases pointer anywhere
-      inp.addEventListener('pointerup', () => {
-        leftSidePanel.style.opacity = 1;
-        rightSidePanel.style.opacity = 1;
-      });
-    });
 
     // ===================================================================
     // CAMERA (zoom + pan) — an infinite-canvas viewport over the artboard.
@@ -1134,7 +1187,7 @@
       }
       state.cells = layout.map((rect, idx) => ({
         id: state.nextCellId++, x: rect.x, y: rect.y, w: rect.w, h: rect.h,
-        bg: '#1e293b', zIndex: idx + 1, opacity: 1, image: null,
+        bg: '#1e293b', zIndex: idx + 1, opacity: 1, bgOpacity: 1, image: null,
         border: defaultBorder(), shadow: defaultShadow()
       }));
       deselectAll();
@@ -1164,7 +1217,7 @@
     }
 
     function addNewCell() {
-      const newCell = { id: state.nextCellId++, x: 25, y: 25, w: 50, h: 50, bg: '#334155', zIndex: state.cells.length + 1, opacity: 1, image: null, border: defaultBorder(), shadow: defaultShadow() };
+      const newCell = { id: state.nextCellId++, x: 25, y: 25, w: 50, h: 50, bg: '#334155', zIndex: state.cells.length + 1, opacity: 1, bgOpacity: 1, image: null, border: defaultBorder(), shadow: defaultShadow() };
       state.cells.push(newCell);
       selectLayer('cell', newCell.id);
     }
@@ -1413,6 +1466,148 @@
       });
     }
 
+    function decodeImageDimensions(src) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve({ naturalW: img.naturalWidth, naturalH: img.naturalHeight });
+        img.onerror = () => reject(new Error('Could not read that image.'));
+        img.src = src;
+      });
+    }
+
+    // Fetches a remote URL and converts it to a same-origin data: URI so it
+    // behaves identically to an uploaded file afterward (no CORS/"tainted
+    // canvas" issues at export time, since it's no longer cross-origin).
+    // This will fail for hosts that don't send CORS headers — that's an
+    // inherent browser security restriction, not something client-side code
+    // can work around.
+    async function fetchImageAsDataUrl(url) {
+      const response = await fetch(url, { mode: 'cors' });
+      if (!response.ok) throw new Error(`Server responded with ${response.status}`);
+      const blob = await response.blob();
+      if (!blob.type.startsWith('image/')) throw new Error('That URL did not return an image file.');
+      return await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    }
+
+    // Best-effort import: try to bring the image in as a local data URL
+    // (robust, export-safe). If the source blocks cross-origin fetches, fall
+    // back to using the raw URL directly so editing still works, with a
+    // warning that export may fail for that specific image.
+    async function resolveExternalImageSrc(url) {
+      try {
+        return await fetchImageAsDataUrl(url);
+      } catch (err) {
+        showToast('Imported using a live link — export may fail for this image if its source blocks cross-origin use.', 'error');
+        return url;
+      }
+    }
+
+    async function setCellImageFromSrc(cell, src) {
+      const { naturalW, naturalH } = await decodeImageDimensions(src);
+      cell.image = { src, naturalW, naturalH, zoom: 1, panX: 0, panY: 0 };
+      render();
+      updateInspectorPanel();
+    }
+
+    async function setBgImageFromSrc(src) {
+      const { naturalW, naturalH } = await decodeImageDimensions(src);
+      state.canvas.bgImage = { src, naturalW, naturalH, zoom: 1, panX: 0, panY: 0 };
+      render();
+      const adjust = document.getElementById('bgImageAdjust');
+      if (adjust) adjust.classList.remove('hidden');
+    }
+
+    function importCellImageFromUrl() {
+      const input = document.getElementById('cellImageUrlInput');
+      const url = input.value.trim();
+      const cell = getSelectedCell();
+      if (!url || !cell) return;
+      resolveExternalImageSrc(url)
+        .then((src) => setCellImageFromSrc(cell, src))
+        .then(() => { input.value = ''; showToast('Image imported.'); })
+        .catch((err) => showToast('Could not import that image: ' + err.message, 'error'));
+    }
+
+    function importBgImageFromUrl() {
+      const input = document.getElementById('bgImageUrlInput');
+      const url = input.value.trim();
+      if (!url) return;
+      resolveExternalImageSrc(url)
+        .then((src) => setBgImageFromSrc(src))
+        .then(() => { input.value = ''; showToast('Background image imported.'); })
+        .catch((err) => showToast('Could not import that image: ' + err.message, 'error'));
+    }
+
+    // Shared drop handler for both cell targets and the canvas background —
+    // accepts a dropped file, or a dragged-in image/link from another tab.
+    async function resolveDroppedImageSrc(dataTransfer) {
+      if (dataTransfer.files && dataTransfer.files.length > 0) {
+        const file = dataTransfer.files[0];
+        if (!file.type.startsWith('image/')) throw new Error('That file is not an image.');
+        const { src } = await loadImageFile(file);
+        return src;
+      }
+      const uri = dataTransfer.getData('text/uri-list') || dataTransfer.getData('text/plain');
+      if (uri && /^https?:\/\//i.test(uri.trim())) {
+        return await resolveExternalImageSrc(uri.trim());
+      }
+      throw new Error('No image found in what was dropped.');
+    }
+
+    function attachCellDropZone(cellOuterEl, cell) {
+      cellOuterEl.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+        cellOuterEl.classList.add('drop-target');
+      });
+      cellOuterEl.addEventListener('dragleave', () => cellOuterEl.classList.remove('drop-target'));
+      cellOuterEl.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        cellOuterEl.classList.remove('drop-target');
+        try {
+          const src = await resolveDroppedImageSrc(e.dataTransfer);
+          await setCellImageFromSrc(cell, src);
+          selectLayer('cell', cell.id);
+          showToast('Image imported.');
+        } catch (err) {
+          showToast('Could not import that image: ' + err.message, 'error');
+        }
+      });
+    }
+
+    function attachBgDropZone() {
+      const workspace = document.getElementById('canvasWorkspace');
+      workspace.addEventListener('dragover', (e) => {
+        if (!isCanvasBackground(e.target)) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+        workspace.classList.add('bg-drop-active');
+      });
+      workspace.addEventListener('dragleave', (e) => {
+        if (e.target === workspace) workspace.classList.remove('bg-drop-active');
+      });
+      workspace.addEventListener('drop', async (e) => {
+        workspace.classList.remove('bg-drop-active');
+        if (!isCanvasBackground(e.target)) return;
+        e.preventDefault();
+        try {
+          const src = await resolveDroppedImageSrc(e.dataTransfer);
+          await setBgImageFromSrc(src);
+          document.getElementById('bgTypeSelect').value = 'image';
+          changeBgType('image');
+          showToast('Background image imported.');
+        } catch (err) {
+          showToast('Could not import that image: ' + err.message, 'error');
+        }
+      });
+    }
+
     // Resolution-independent "cover" placement, shared by every image layer
     // (cell images AND the canvas background image) and by both the live
     // preview and the export renderer.
@@ -1587,7 +1782,7 @@
         : 'none';
 
       const mask = cellOuterEl.querySelector('.cell-mask');
-      if (mask) mask.style.backgroundColor = cell.bg;
+      if (mask) mask.style.backgroundColor = hexToRgba(cell.bg, cell.bgOpacity != null ? cell.bgOpacity : 1);
 
       const imgEl = cellOuterEl.querySelector('.cell-image');
       if (imgEl && cell.image) {
@@ -1654,6 +1849,7 @@
         if (!cell.border) cell.border = defaultBorder();
         if (!cell.shadow) cell.shadow = defaultShadow();
         if (cell.opacity == null) cell.opacity = 1;
+        if (cell.bgOpacity == null) cell.bgOpacity = 1;
 
         const isSelected = state.selectedType === 'cell' && cell.id === state.selectedId;
         const isPanMode = state.panModeCellId === cell.id;
@@ -1712,6 +1908,8 @@
           });
           attachDragHandlers(cellOuter, cell, 'cell');
         }
+
+        attachCellDropZone(cellOuter, cell);
 
         container.appendChild(cellOuter);
         els.cells.set(cell.id, cellOuter);
@@ -2069,6 +2267,8 @@
         document.getElementById('cellColorInput').value = cell.bg;
         document.getElementById('cellOpacityInput').value = Math.round((cell.opacity != null ? cell.opacity : 1) * 100);
         document.getElementById('cellOpacityVal').innerText = `${Math.round((cell.opacity != null ? cell.opacity : 1) * 100)}%`;
+        document.getElementById('cellBgOpacityInput').value = Math.round((cell.bgOpacity != null ? cell.bgOpacity : 1) * 100);
+        document.getElementById('cellBgOpacityVal').innerText = `${Math.round((cell.bgOpacity != null ? cell.bgOpacity : 1) * 100)}%`;
 
         document.getElementById('cellBorderEnabled').checked = cell.border.enabled;
         document.getElementById('cellBorderColor').value = cell.border.color;
@@ -2187,6 +2387,14 @@
       applyCellGeometry(els.cells.get(cell.id), cell);
     }
 
+    function updateCellBgOpacity() {
+      const cell = getSelectedCell();
+      if (!cell) return;
+      cell.bgOpacity = parseInt(document.getElementById('cellBgOpacityInput').value, 10) / 100;
+      document.getElementById('cellBgOpacityVal').innerText = `${Math.round(cell.bgOpacity * 100)}%`;
+      applyCellGeometry(els.cells.get(cell.id), cell);
+    }
+
     function updateCellBorder() {
       const cell = getSelectedCell();
       if (!cell) return;
@@ -2287,14 +2495,19 @@
     }
 
     async function exportLayout() {
-      const btn = document.getElementById('exportBtn');
-      const icon = document.getElementById('exportIcon');
-      const label = document.getElementById('exportLabel');
-      btn.disabled = true;
-      icon.innerHTML = '<span class="spin inline-block">⏳</span>';
-      label.innerText = 'Rendering…';
+      const downloadBtn = document.getElementById('exportDownloadBtn');
+      const downloadIcon = document.getElementById('exportDownloadIcon');
+      const downloadLabel = document.getElementById('exportDownloadLabel');
+      const format = document.getElementById('exportFormatSelect').value; // 'png' | 'jpeg' | 'pdf'
+      const formatName = format.toUpperCase();
+
+      downloadBtn.disabled = true;
+      downloadIcon.innerHTML = '<span class="spin inline-block">⏳</span>';
+      downloadLabel.innerText = format === 'pdf' ? 'Preparing PDF…' : 'Rendering…';
 
       try {
+        if (format === 'pdf') await ensureJsPDFLoaded();
+
         const scale = parseFloat(document.getElementById('exportScaleSelect').value) || 2;
         const w = state.canvas.width;
         const h = state.canvas.height;
@@ -2381,7 +2594,7 @@
           ctx.beginPath();
           ctx.roundRect(cx, cy, cw, ch, Math.max(0, r));
           ctx.clip();
-          ctx.fillStyle = cell.bg;
+          ctx.fillStyle = hexToRgba(cell.bg, cell.bgOpacity != null ? cell.bgOpacity : 1);
           ctx.fillRect(cx, cy, cw, ch);
           if (cell.image && cellImages[cell.id]) {
             const rect = getImageDrawRect(cell.image, cw, ch);
@@ -2448,18 +2661,181 @@
           ctx.restore();
         }
 
-        const link = document.createElement('a');
-        link.download = `grid-design-${Date.now()}.png`;
-        link.href = exportCanvas.toDataURL('image/png');
-        link.click();
+        const stamp = Date.now();
+        if (format === 'pdf') {
+          const { jsPDF } = window.jspdf;
+          const pdf = new jsPDF({
+            unit: 'px',
+            format: [w, h]
+          });
+          const pdfImageData = exportCanvas.toDataURL('image/jpeg', 0.95);
+          pdf.addImage(pdfImageData, 'JPEG', 0, 0, w, h);
+          pdf.save(`grid-design-${stamp}.pdf`);
+        } else {
+          const quality = format === 'jpeg' ? (parseInt(document.getElementById('exportQualityInput').value, 10) / 100) : undefined;
+          const mime = format === 'jpeg' ? 'image/jpeg' : 'image/png';
+          const ext = format === 'jpeg' ? 'jpg' : 'png';
+          const link = document.createElement('a');
+          link.download = `grid-design-${stamp}.${ext}`;
+          link.href = exportCanvas.toDataURL(mime, quality);
+          link.click();
+        }
+        showToast(`${formatName} exported.`);
+        closeExportMenu();
       } catch (err) {
         console.error(err);
         showToast('Export failed: ' + err.message, 'error');
       } finally {
-        btn.disabled = false;
-        icon.innerText = '📥';
-        label.innerText = 'Export PNG';
+        downloadBtn.disabled = false;
+        onExportFormatChange();
       }
+    }
+
+    // ===================================================================
+    // EXPORT MENU (popover: image export + save/load project)
+    // ===================================================================
+    function toggleExportMenu() {
+      const menu = document.getElementById('exportMenu');
+      menu.classList.toggle('hidden');
+    }
+    function closeExportMenu() {
+      document.getElementById('exportMenu').classList.add('hidden');
+    }
+    function switchExportTab(tab) {
+      ['image', 'project'].forEach((t) => {
+        const btn = document.getElementById(`exportTabBtn-${t}`);
+        const content = document.getElementById(`exportTab-${t}`);
+        if (t === tab) {
+          btn.className = 'py-1.5 text-xs font-semibold rounded-md bg-blue-600 text-white transition';
+          content.classList.remove('hidden');
+        } else {
+          btn.className = 'py-1.5 text-xs font-semibold rounded-md text-slate-400 hover:text-white transition';
+          content.classList.add('hidden');
+        }
+      });
+    }
+    function onExportFormatChange() {
+      const format = document.getElementById('exportFormatSelect').value;
+      document.getElementById('exportQualityRow').classList.toggle('hidden', format !== 'jpeg');
+      const label = document.getElementById('exportDownloadLabel');
+      const icon = document.getElementById('exportDownloadIcon');
+      icon.innerText = format === 'pdf' ? '📄' : '📥';
+      label.innerText = `Download ${format.toUpperCase()}`;
+    }
+
+    let jsPdfLoadPromise = null;
+    function ensureJsPDFLoaded() {
+      if (window.jspdf) return Promise.resolve();
+      if (jsPdfLoadPromise) return jsPdfLoadPromise;
+      jsPdfLoadPromise = new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+        script.onload = resolve;
+        script.onerror = () => reject(new Error('Could not load the PDF export library — check your internet connection.'));
+        document.head.appendChild(script);
+      });
+      return jsPdfLoadPromise;
+    }
+
+    // ===================================================================
+    // SAVE / LOAD PROJECT
+    // ===================================================================
+    function saveProject() {
+      try {
+        const snapshot = {
+          format: 'grid-layout-studio-project',
+          version: 1,
+          savedAt: new Date().toISOString(),
+          canvas: state.canvas,
+          cells: state.cells,
+          texts: state.texts,
+          customGoogleFonts: state.customFonts.slice()
+        };
+        const json = JSON.stringify(snapshot);
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.download = `grid-project-${Date.now()}.json`;
+        link.href = url;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 4000);
+        showToast('Project saved — keep the .json file to reload it later.');
+        closeExportMenu();
+      } catch (err) {
+        showToast('Could not save the project: ' + err.message, 'error');
+      }
+    }
+
+    function syncCanvasControlsFromState() {
+      const c = state.canvas;
+      document.getElementById('canvasWidthInput').value = c.width;
+      document.getElementById('canvasHeightInput').value = c.height;
+      document.getElementById('bgTypeSelect').value = c.bgType;
+      document.getElementById('bgColorInput').value = c.bgColor;
+      document.getElementById('bgColorHex').value = c.bgColor;
+      document.getElementById('bgGrad1').value = c.gradient1;
+      document.getElementById('bgGrad2').value = c.gradient2;
+      document.getElementById('bgGradAngle').value = c.gradientAngle;
+      document.getElementById('bgPatternSelect').value = c.pattern;
+      document.getElementById('gapInput').value = c.gap;
+      document.getElementById('radiusInput').value = c.borderRadius;
+      document.querySelectorAll('.bg-style-group').forEach(el => el.classList.add('hidden'));
+      document.getElementById(`bgStyle-${c.bgType}`).classList.remove('hidden');
+      if (c.bgImage) document.getElementById('bgImageAdjust').classList.remove('hidden');
+    }
+
+    function loadProjectFile(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          const data = JSON.parse(ev.target.result);
+          if (!data || typeof data !== 'object' || !Array.isArray(data.cells) || !data.canvas) {
+            throw new Error('This does not look like a valid project file.');
+          }
+
+          state.canvas = Object.assign(
+            { bgColor: '#0f172a', bgType: 'color', gradient1: '#0f172a', gradient2: '#1e1b4b', gradientAngle: 135, pattern: 'dots', bgImage: null, gap: 8, borderRadius: 8, width: 700, height: 700, preset: '1:1' },
+            data.canvas
+          );
+          state.cells = (data.cells || []).map((c) => ({
+            id: c.id, x: c.x, y: c.y, w: c.w, h: c.h, bg: c.bg || '#1e293b',
+            zIndex: c.zIndex || 1, opacity: c.opacity != null ? c.opacity : 1,
+            bgOpacity: c.bgOpacity != null ? c.bgOpacity : 1,
+            image: c.image || null,
+            border: Object.assign(defaultBorder(), c.border || {}),
+            shadow: Object.assign(defaultShadow(), c.shadow || {})
+          }));
+          state.texts = (data.texts || []).map((t) => Object.assign({
+            opacity: 1, letterSpacing: 0, lineHeight: 1.2,
+            strokeEnabled: false, strokeColor: '#000000', strokeWidth: 1,
+            bgEnabled: false, bgColor: '#000000', bgOpacity: 0.35,
+            shadowEnabled: false, shadowColor: '#000000', shadowBlur: 8, shadowOffsetX: 0, shadowOffsetY: 4, shadowOpacity: 0.5,
+            align: 'center', rotation: 0, fontWeight: '700'
+          }, t));
+
+          state.nextCellId = 1 + state.cells.reduce((m, c) => Math.max(m, c.id || 0), 0);
+          state.nextTextId = 1 + state.texts.reduce((m, t) => Math.max(m, t.id || 0), 0);
+
+          (data.customGoogleFonts || []).forEach((family) => {
+            document.getElementById('googleFontInput').value = family;
+            loadGoogleFont();
+          });
+
+          syncCanvasControlsFromState();
+          deselectAll();
+          applyViewportSize();
+          render();
+          showToast('Project loaded.');
+          closeExportMenu();
+        } catch (err) {
+          showToast('Could not load that file: ' + err.message, 'error');
+        }
+      };
+      reader.onerror = () => showToast('Could not read that file.', 'error');
+      reader.readAsText(file);
+      e.target.value = '';
     }
 
     // ===================================================================
@@ -2470,11 +2846,19 @@
       if (isCanvasBackground(e.target)) deselectAll();
     });
 
+    document.addEventListener('click', (e) => {
+      const menu = document.getElementById('exportMenu');
+      if (menu.classList.contains('hidden')) return;
+      if (menu.contains(e.target) || e.target.closest('#exportBtn')) return;
+      closeExportMenu();
+    });
+
     document.addEventListener('keydown', (e) => {
       const tag = (e.target.tagName || '').toLowerCase();
       if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
       if (e.key === 'Escape') {
-        if (activeDrawer) closeDrawers();
+        if (!document.getElementById('exportMenu').classList.contains('hidden')) closeExportMenu();
+        else if (activeDrawer) closeDrawers();
         else if (state.panModeCellId) { exitPanMode(); render(); updateInspectorPanel(); }
         else deselectAll();
       }
@@ -2501,6 +2885,9 @@
 
     // Initialize
     setupCameraGestures();
+    attachBgDropZone();
+    initSliderFadeBehavior();
+    onExportFormatChange();
     generateTemplate('bsp');
     fitToScreen();
   </script>
