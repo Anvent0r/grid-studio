@@ -81,30 +81,20 @@
        force text-entry fields (not buttons/checkboxes/color/range) to 16px to prevent that. */
     input[type="text"], input[type="number"], textarea, select { font-size: 16px !important; }
 
-    /* ---- Responsive: off-canvas drawers on phone-sized screens ---- */
-    @media (max-width: 767px) {
-      .mobile-drawer {
-        position: fixed;
-        top: calc(56px + env(safe-area-inset-top));
-        bottom: 0;
-        z-index: 40;
-        width: 88vw;
-        max-width: 340px;
-        transition: transform .22s ease, opacity .18s ease;
-        box-shadow: 0 10px 40px rgba(0,0,0,.55);
-        padding-bottom: env(safe-area-inset-bottom);
-      }
-      #leftSidebar.mobile-drawer { left: 0; transform: translateX(-105%); }
-      #leftSidebar.mobile-drawer.drawer-open { transform: translateX(0); }
-      #rightSidebar.mobile-drawer { right: 0; transform: translateX(105%); }
-      #rightSidebar.mobile-drawer.drawer-open { transform: translateX(0); }
-      .drawer-mobile-header { display: flex !important; }
-      .mobile-drawer.fade-for-preview { opacity: 0.16; }
+    /* ---- Bottom bar + slide-up sheet (replaces sidebars at every screen size) ---- */
+    :root { --bottom-bar-h: calc(4.25rem + env(safe-area-inset-bottom)); }
+
+    #navBtn-grid.nav-active, #navBtn-text.nav-active, #navBtn-canvas.nav-active, #navBtn-adjust.nav-active {
+      color: #60a5fa;
     }
-    @media (min-width: 768px) {
-      .mobile-drawer { position: static !important; transform: none !important; box-shadow: none !important; width: 320px; }
-      .drawer-mobile-header { display: none !important; }
+
+    #bottomSheet {
+      transform: translateY(110%);
+      transition: transform .25s ease, opacity .18s ease;
+      padding-bottom: env(safe-area-inset-bottom);
     }
+    #bottomSheet.sheet-open { transform: translateY(0); }
+    #bottomSheet.fade-for-preview { opacity: 0.16; }
 
     #canvasWorkspace { touch-action: none; cursor: grab; }
     #canvasWorkspace.panning { cursor: grabbing; }
@@ -137,7 +127,6 @@
   <!-- Header -->
   <header class="relative z-50 border-b border-slate-800 px-3 sm:px-6 flex items-center justify-between bg-slate-950 shrink-0">
     <div class="flex items-center space-x-2 sm:space-x-3 min-w-0">
-      <button onclick="openDrawer('left')" class="md:hidden w-9 h-9 shrink-0 flex items-center justify-center rounded-lg bg-slate-900 border border-slate-800 text-base" aria-label="Open tools panel">🧰</button>
       <div class="w-8 h-8 shrink-0 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-lg flex items-center justify-center font-black text-xl shadow-lg shadow-blue-500/30">G</div>
       <div class="min-w-0">
         <h1 class="text-sm sm:text-base font-bold tracking-wide leading-tight truncate">Grid & Layout Studio</h1>
@@ -160,7 +149,7 @@
         <div id="exportMenu" class="hidden absolute right-0 mt-2 w-72 max-w-[85vw] bg-slate-950 border border-slate-800 rounded-xl shadow-2xl z-50 overflow-hidden">
           <div class="grid grid-cols-2 gap-1 bg-slate-900 p-1 m-2 rounded-lg border border-slate-800">
             <button id="exportTabBtn-image" onclick="switchExportTab('image')" class="py-1.5 text-xs font-semibold rounded-md bg-blue-600 text-white transition">Image</button>
-            <button id="exportTabBtn-project" onclick="switchExportTab('project')" class="py-1.5 text-xs font-semibold rounded-md text-slate-400 hover:text-white transition">Project File</button>
+            <button id="exportTabBtn-project" onclick="switchExportTab('project')" class="py-1.5 text-xs font-semibold rounded-md text-slate-400 hover:text-white transition">💾 Project File</button>
           </div>
 
           <div id="exportTab-image" class="px-4 pb-4 space-y-3">
@@ -203,35 +192,47 @@
           </div>
         </div>
       </div>
-
-      <button onclick="openDrawer('right')" class="md:hidden w-9 h-9 shrink-0 relative flex items-center justify-center rounded-lg bg-slate-900 border border-slate-800 text-base" aria-label="Open inspector panel">
-        🎛️
-        <span id="inspectorDot" class="hidden absolute -top-1 -right-1 w-2.5 h-2.5 bg-blue-500 rounded-full border border-slate-950"></span>
-      </button>
     </div>
   </header>
 
-  <!-- Main Workspace -->
-  <div class="flex-1 flex overflow-hidden">
+  <!-- Workspace -->
+  <div id="workspaceArea" class="flex-1 relative overflow-hidden">
 
-    <!-- Left Sidebar -->
-    <aside id="leftSidebar" class="mobile-drawer w-80 border-r border-slate-800 bg-slate-950 flex flex-col overflow-y-auto p-4 space-y-5 z-10">
-
-      <div class="drawer-mobile-header hidden items-center justify-between -mt-1 mb-1">
-        <h2 class="text-sm font-bold text-slate-200">Tools</h2>
-        <button onclick="closeDrawers()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-900 border border-slate-800 text-slate-400" aria-label="Close">✕</button>
+    <!-- Canvas Workspace -->
+    <main id="canvasWorkspace" class="absolute inset-0 bg-slate-900 bg-workspace-pattern overflow-hidden min-w-0" style="bottom: var(--bottom-bar-h);">
+      <div id="canvasViewport" class="absolute top-0 left-0 bg-slate-950 shadow-2xl border border-slate-800 overflow-hidden" style="width: 700px; height: 700px; transform-origin: 0 0;">
+        <div id="gridCanvas" class="w-full h-full relative overflow-hidden"></div>
+        <div id="snapGuideV" class="snap-line snap-line-v"></div>
+        <div id="snapGuideH" class="snap-line snap-line-h"></div>
       </div>
 
-      <div class="grid grid-cols-3 gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800">
-        <button id="tabBtn-grid" onclick="switchLeftTab('grid')" class="py-1.5 text-xs font-semibold rounded-lg bg-blue-600 text-white transition">Grids</button>
-        <button id="tabBtn-text" onclick="switchLeftTab('text')" class="py-1.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition">Text</button>
-        <button id="tabBtn-canvas" onclick="switchLeftTab('canvas')" class="py-1.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition">Canvas</button>
+      <!-- Zoom controls -->
+      <div class="hidden md:flex absolute bottom-4 right-4 z-20 items-center bg-slate-950/90 backdrop-blur border border-slate-800 rounded-full shadow-xl px-1 py-1 space-x-0.5">
+        <button onclick="zoomStep(-1)" class="w-9 h-9 rounded-full hover:bg-slate-800 active:bg-slate-700 flex items-center justify-center text-slate-200 text-lg font-bold" aria-label="Zoom out">−</button>
+        <button onclick="fitToScreen()" id="zoomPercentBtn" class="px-2 h-9 rounded-full hover:bg-slate-800 active:bg-slate-700 text-xs font-mono text-slate-300 min-w-[54px]" aria-label="Reset zoom to fit screen" title="Reset to fit screen">100%</button>
+        <button onclick="zoomStep(1)" class="w-9 h-9 rounded-full hover:bg-slate-800 active:bg-slate-700 flex items-center justify-center text-slate-200 text-lg font-bold" aria-label="Zoom in">+</button>
       </div>
+    </main>
 
-      <!-- TAB 1: GRID -->
+    <!-- Contextual quick-action toolbar (shown when a cell/text is selected) -->
+    <div id="contextBar" class="hidden fixed left-3 right-3 z-30 bg-slate-950/95 backdrop-blur border border-slate-800 rounded-2xl shadow-xl px-2 py-2 items-center justify-around max-w-md mx-auto" style="bottom: calc(var(--bottom-bar-h) + 10px);">
+      <button id="ctxImageBtn" onclick="triggerContextImagePick()" class="flex flex-col items-center gap-0.5 text-slate-300 hover:text-white px-2 py-1"><span class="text-lg leading-none">🖼️</span><span class="text-[10px] font-medium">Image</span></button>
+      <button onclick="changeZIndex(state.selectedType, 1)" class="flex flex-col items-center gap-0.5 text-slate-300 hover:text-white px-2 py-1"><span class="text-lg leading-none">⬆️</span><span class="text-[10px] font-medium">Forward</span></button>
+      <button onclick="changeZIndex(state.selectedType, -1)" class="flex flex-col items-center gap-0.5 text-slate-300 hover:text-white px-2 py-1"><span class="text-lg leading-none">⬇️</span><span class="text-[10px] font-medium">Backward</span></button>
+      <button onclick="openSheet('adjust')" class="flex flex-col items-center gap-0.5 text-blue-400 hover:text-blue-300 px-2 py-1"><span class="text-lg leading-none">⚙️</span><span class="text-[10px] font-medium">Adjust</span></button>
+      <button onclick="deleteCurrentSelection()" class="flex flex-col items-center gap-0.5 text-red-400 hover:text-red-300 px-2 py-1"><span class="text-lg leading-none">🗑️</span><span class="text-[10px] font-medium">Delete</span></button>
+    </div>
+
+    <!-- Bottom sheet: Layout / Text / Canvas / Adjust panels -->
+    <div id="bottomSheet" class="fixed left-0 right-0 bottom-0 z-50 bg-slate-950 border-t border-slate-800 rounded-t-2xl shadow-2xl flex flex-col">
+      <div class="flex items-center justify-between px-4 py-3 border-b border-slate-800 shrink-0 max-w-2xl w-full mx-auto">
+        <h2 id="sheetTitle" class="text-sm font-bold text-slate-200">Panel</h2>
+        <button onclick="closeSheet()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-900 border border-slate-800 text-slate-400" aria-label="Close">✕</button>
+      </div>
+      <div class="overflow-y-auto p-4 space-y-5 max-w-2xl w-full mx-auto" style="max-height: 58vh;">
       <div id="tabContent-grid" class="space-y-5">
         <div>
-          <h2 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2.5">Template Builder</h2>
+          <h2 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2.5">🧩 Template Builder</h2>
           <div class="space-y-3">
             <div>
               <div class="flex justify-between text-xs mb-1">
@@ -242,10 +243,39 @@
             </div>
 
             <div class="grid grid-cols-2 gap-2">
-              <button onclick="generateTemplate('bsp')" class="p-2 bg-slate-900 hover:bg-slate-800 rounded-lg text-xs font-medium text-slate-200 border border-slate-800 hover:border-slate-700 transition">BSP Mosaic</button>
-              <button onclick="generateTemplate('hero')" class="p-2 bg-slate-900 hover:bg-slate-800 rounded-lg text-xs font-medium text-slate-200 border border-slate-800 hover:border-slate-700 transition">Hero Layout</button>
-              <button onclick="generateTemplate('grid')" class="p-2 bg-slate-900 hover:bg-slate-800 rounded-lg text-xs font-medium text-slate-200 border border-slate-800 hover:border-slate-700 transition">Equal Grid</button>
-              <button onclick="generateTemplate('rows')" class="p-2 bg-slate-900 hover:bg-slate-800 rounded-lg text-xs font-medium text-slate-200 border border-slate-800 hover:border-slate-700 transition">Vertical Strips</button>
+              <button onclick="generateTemplate('bsp')" class="group p-2 bg-slate-900 hover:bg-slate-800 rounded-lg border border-slate-800 hover:border-blue-600 transition flex flex-col items-center gap-1.5">
+                <div class="w-full aspect-[4/3] relative bg-slate-950 rounded overflow-hidden">
+                  <div class="absolute bg-blue-500/70 rounded-[2px]" style="left:2%;top:2%;width:56%;height:96%;"></div>
+                  <div class="absolute bg-blue-500/50 rounded-[2px]" style="left:60%;top:2%;width:38%;height:44%;"></div>
+                  <div class="absolute bg-blue-500/50 rounded-[2px]" style="left:60%;top:48%;width:38%;height:50%;"></div>
+                </div>
+                <span class="text-[11px] font-medium text-slate-300 group-hover:text-white">🧩 Mosaic</span>
+              </button>
+              <button onclick="generateTemplate('hero')" class="group p-2 bg-slate-900 hover:bg-slate-800 rounded-lg border border-slate-800 hover:border-blue-600 transition flex flex-col items-center gap-1.5">
+                <div class="w-full aspect-[4/3] relative bg-slate-950 rounded overflow-hidden">
+                  <div class="absolute bg-blue-500/70 rounded-[2px]" style="left:2%;top:2%;width:56%;height:96%;"></div>
+                  <div class="absolute bg-blue-500/50 rounded-[2px]" style="left:60%;top:2%;width:38%;height:46%;"></div>
+                  <div class="absolute bg-blue-500/50 rounded-[2px]" style="left:60%;top:52%;width:38%;height:46%;"></div>
+                </div>
+                <span class="text-[11px] font-medium text-slate-300 group-hover:text-white">🌟 Spotlight</span>
+              </button>
+              <button onclick="generateTemplate('grid')" class="group p-2 bg-slate-900 hover:bg-slate-800 rounded-lg border border-slate-800 hover:border-blue-600 transition flex flex-col items-center gap-1.5">
+                <div class="w-full aspect-[4/3] relative bg-slate-950 rounded overflow-hidden">
+                  <div class="absolute bg-blue-500/60 rounded-[2px]" style="left:2%;top:2%;width:46%;height:46%;"></div>
+                  <div class="absolute bg-blue-500/60 rounded-[2px]" style="left:52%;top:2%;width:46%;height:46%;"></div>
+                  <div class="absolute bg-blue-500/60 rounded-[2px]" style="left:2%;top:52%;width:46%;height:46%;"></div>
+                  <div class="absolute bg-blue-500/60 rounded-[2px]" style="left:52%;top:52%;width:46%;height:46%;"></div>
+                </div>
+                <span class="text-[11px] font-medium text-slate-300 group-hover:text-white">▦ Even Grid</span>
+              </button>
+              <button onclick="generateTemplate('rows')" class="group p-2 bg-slate-900 hover:bg-slate-800 rounded-lg border border-slate-800 hover:border-blue-600 transition flex flex-col items-center gap-1.5">
+                <div class="w-full aspect-[4/3] relative bg-slate-950 rounded overflow-hidden">
+                  <div class="absolute bg-blue-500/60 rounded-[2px]" style="left:2%;top:2%;width:29%;height:96%;"></div>
+                  <div class="absolute bg-blue-500/60 rounded-[2px]" style="left:35.5%;top:2%;width:29%;height:96%;"></div>
+                  <div class="absolute bg-blue-500/60 rounded-[2px]" style="left:69%;top:2%;width:29%;height:96%;"></div>
+                </div>
+                <span class="text-[11px] font-medium text-slate-300 group-hover:text-white">▥ Columns</span>
+              </button>
             </div>
           </div>
         </div>
@@ -253,7 +283,7 @@
         <hr class="border-slate-800">
 
         <div>
-          <h2 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2.5">Custom Layout Operations</h2>
+          <h2 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2.5">✂️ Custom Layout Operations</h2>
           <div class="grid grid-cols-2 gap-2">
             <button onclick="splitSelectedCell('v')" class="p-2 bg-slate-900 hover:bg-slate-800 rounded-lg text-xs font-medium text-slate-200 border border-slate-800 transition">✂️ Split Vertically</button>
             <button onclick="splitSelectedCell('h')" class="p-2 bg-slate-900 hover:bg-slate-800 rounded-lg text-xs font-medium text-slate-200 border border-slate-800 transition">✂️ Split Horizontally</button>
@@ -265,26 +295,26 @@
 
       <!-- TAB 2: TEXT -->
       <div id="tabContent-text" class="space-y-4 hidden">
-        <h2 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Add Typography</h2>
+        <h2 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">🔤 Add Text</h2>
         <div class="space-y-2">
           <button onclick="addTextElement('heading')" class="w-full p-3 bg-slate-900 hover:bg-slate-800 rounded-lg border border-slate-800 flex items-center justify-between text-left transition group">
-            <span class="text-lg font-bold font-['Montserrat'] text-white">Add Heading</span>
-            <span class="text-xs text-blue-400 group-hover:translate-x-0.5 transition">+</span>
+            <span class="flex items-center gap-2"><span class="text-lg">🔠</span><span class="text-lg font-bold font-['Montserrat'] text-white">Heading</span></span>
+            <span class="w-6 h-6 flex items-center justify-center rounded-full bg-blue-600 text-white text-sm font-bold group-hover:scale-110 transition">+</span>
           </button>
           <button onclick="addTextElement('subheading')" class="w-full p-2.5 bg-slate-900 hover:bg-slate-800 rounded-lg border border-slate-800 flex items-center justify-between text-left transition group">
-            <span class="text-sm font-semibold text-slate-200">Add Subheading</span>
-            <span class="text-xs text-blue-400 group-hover:translate-x-0.5 transition">+</span>
+            <span class="flex items-center gap-2"><span class="text-base">🔡</span><span class="text-sm font-semibold text-slate-200">Subheading</span></span>
+            <span class="w-6 h-6 flex items-center justify-center rounded-full bg-blue-600 text-white text-sm font-bold group-hover:scale-110 transition">+</span>
           </button>
           <button onclick="addTextElement('body')" class="w-full p-2 bg-slate-900 hover:bg-slate-800 rounded-lg border border-slate-800 flex items-center justify-between text-left transition group">
-            <span class="text-xs text-slate-400">Add Body Text</span>
-            <span class="text-xs text-blue-400 group-hover:translate-x-0.5 transition">+</span>
+            <span class="flex items-center gap-2"><span class="text-sm">📝</span><span class="text-xs text-slate-400">Body Text</span></span>
+            <span class="w-6 h-6 flex items-center justify-center rounded-full bg-blue-600 text-white text-sm font-bold group-hover:scale-110 transition">+</span>
           </button>
         </div>
 
         <hr class="border-slate-800">
 
         <div>
-          <h2 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Custom Fonts</h2>
+          <h2 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">🔡 Custom Fonts</h2>
           <div class="space-y-2">
             <label class="block text-[10px] text-slate-400">Load a Google Font by name</label>
             <div class="flex space-x-2">
@@ -307,7 +337,7 @@
       <!-- TAB 3: CANVAS -->
       <div id="tabContent-canvas" class="space-y-5 hidden">
         <div>
-          <h2 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Canvas Size Presets</h2>
+          <h2 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">📐 Canvas Size Presets</h2>
           <div class="grid grid-cols-2 gap-2 mb-3">
             <button onclick="setCanvasPreset('1:1')" class="p-2 bg-slate-900 hover:bg-slate-800 text-xs rounded border border-slate-800 text-slate-200">Insta Post (1:1)</button>
             <button onclick="setCanvasPreset('9:16')" class="p-2 bg-slate-900 hover:bg-slate-800 text-xs rounded border border-slate-800 text-slate-200">Story/Reel (9:16)</button>
@@ -329,16 +359,25 @@
         <hr class="border-slate-800">
 
         <div>
-          <h2 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Background Style</h2>
+          <h2 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">🎨 Background Style</h2>
           <div class="space-y-3">
             <div>
-              <label class="block text-xs text-slate-400 mb-1">Fill Type</label>
-              <select id="bgTypeSelect" onchange="changeBgType(this.value)" class="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1.5 text-xs text-slate-200">
-                <option value="color">Solid Color</option>
-                <option value="gradient">Linear Gradient</option>
-                <option value="pattern">Pattern Overlay</option>
-                <option value="image">Background Image</option>
-              </select>
+              <label class="block text-xs text-slate-400 mb-1.5">Fill Type</label>
+              <div class="grid grid-cols-4 gap-2">
+                <button type="button" onclick="selectBgType('color')" data-bgtype="color" class="bg-type-btn flex flex-col items-center gap-1 py-2 rounded-lg border transition">
+                  <span class="text-lg leading-none">🎨</span><span class="text-[10px] font-medium">Color</span>
+                </button>
+                <button type="button" onclick="selectBgType('gradient')" data-bgtype="gradient" class="bg-type-btn flex flex-col items-center gap-1 py-2 rounded-lg border transition">
+                  <span class="text-lg leading-none">🌈</span><span class="text-[10px] font-medium">Gradient</span>
+                </button>
+                <button type="button" onclick="selectBgType('pattern')" data-bgtype="pattern" class="bg-type-btn flex flex-col items-center gap-1 py-2 rounded-lg border transition">
+                  <span class="text-lg leading-none">▦</span><span class="text-[10px] font-medium">Pattern</span>
+                </button>
+                <button type="button" onclick="selectBgType('image')" data-bgtype="image" class="bg-type-btn flex flex-col items-center gap-1 py-2 rounded-lg border transition">
+                  <span class="text-lg leading-none">🖼️</span><span class="text-[10px] font-medium">Image</span>
+                </button>
+              </div>
+              <select id="bgTypeSelect" class="hidden"><option value="color">Color</option><option value="gradient">Gradient</option><option value="pattern">Pattern</option><option value="image">Image</option></select>
             </div>
 
             <div id="bgStyle-color" class="bg-style-group">
@@ -420,7 +459,7 @@
         <hr class="border-slate-800">
 
         <div>
-          <h2 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2.5">Grid Global Spacing</h2>
+          <h2 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2.5">📏 Grid & Spacing</h2>
           <div class="space-y-3">
             <div>
               <label class="block text-xs text-slate-400 mb-1">Cell Gap (px)</label>
@@ -433,32 +472,8 @@
           </div>
         </div>
       </div>
-    </aside>
-
-    <!-- Canvas Workspace -->
-    <main id="canvasWorkspace" class="flex-1 bg-slate-900 bg-workspace-pattern relative overflow-hidden min-w-0">
-      <div id="canvasViewport" class="absolute top-0 left-0 bg-slate-950 shadow-2xl border border-slate-800 overflow-hidden" style="width: 700px; height: 700px; transform-origin: 0 0;">
-        <div id="gridCanvas" class="w-full h-full relative overflow-hidden"></div>
-        <div id="snapGuideV" class="snap-line snap-line-v"></div>
-        <div id="snapGuideH" class="snap-line snap-line-h"></div>
-      </div>
-
-      <!-- Zoom controls -->
-      <div class="hidden md:flex absolute bottom-4 right-4 z-20 items-center bg-slate-950/90 backdrop-blur border border-slate-800 rounded-full shadow-xl px-1 py-1 space-x-0.5">
-        <button onclick="zoomStep(-1)" class="w-9 h-9 rounded-full hover:bg-slate-800 active:bg-slate-700 flex items-center justify-center text-slate-200 text-lg font-bold" aria-label="Zoom out">−</button>
-        <button onclick="fitToScreen()" id="zoomPercentBtn" class="px-2 h-9 rounded-full hover:bg-slate-800 active:bg-slate-700 text-xs font-mono text-slate-300 min-w-[54px]" aria-label="Reset zoom to fit screen" title="Reset to fit screen">100%</button>
-        <button onclick="zoomStep(1)" class="w-9 h-9 rounded-full hover:bg-slate-800 active:bg-slate-700 flex items-center justify-center text-slate-200 text-lg font-bold" aria-label="Zoom in">+</button>
-      </div>
-    </main>
-
-    <!-- Right Sidebar -->
-    <aside id="rightSidebar" class="mobile-drawer w-80 border-l border-slate-800 bg-slate-950 p-4 flex flex-col space-y-5 overflow-y-auto z-10">
-      <div class="drawer-mobile-header hidden items-center justify-between -mt-1 mb-1">
-        <h2 class="text-sm font-bold text-slate-200">Inspector</h2>
-        <button onclick="closeDrawers()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-900 border border-slate-800 text-slate-400" aria-label="Close">✕</button>
-      </div>
+        <div id="tabContent-adjust" class="space-y-4 hidden">
       <div>
-        <h2 id="inspectorTitle" class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Selected Layer Inspector</h2>
 
         <div id="noSelectionNotice" class="text-xs text-slate-500 p-4 rounded-lg bg-slate-900/50 border border-slate-800/80 text-center space-y-1">
           <p>🖱️ No layer selected.</p>
@@ -468,7 +483,7 @@
         <!-- CELL CONTROLS -->
         <div id="cellControls" class="space-y-4 hidden">
           <div>
-            <label class="block text-xs text-slate-400 mb-1">Cell Image</label>
+            <label class="block text-xs text-slate-400 mb-1">🖼️ Cell Image</label>
             <input type="file" id="imageUploader" accept="image/*" class="text-xs text-slate-400 file:mr-2 file:py-1 file:px-2 flex-1 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white" onchange="uploadImage(event)">
             <div class="flex space-x-2 mt-2">
               <input type="text" id="cellImageUrlInput" placeholder="…or paste an image URL" class="flex-1 min-w-0 bg-slate-900 border border-slate-800 rounded px-2 py-1.5 text-xs">
@@ -478,13 +493,13 @@
           </div>
 
           <div>
-            <label class="block text-xs text-slate-400 mb-1">Cell Background Color</label>
+            <label class="block text-xs text-slate-400 mb-1">🎨 Background Color</label>
             <input type="color" id="cellColorInput" value="#1e293b" class="w-full h-8 rounded bg-slate-800 border border-slate-700 cursor-pointer" onchange="updateSelectedCellColor(this.value)">
           </div>
 
           <div>
             <div class="flex justify-between text-xs mb-1">
-              <span class="text-slate-400">Background Fill Opacity</span>
+              <span class="text-slate-400">💧 Background Fill Opacity</span>
               <span id="cellBgOpacityVal" class="font-mono text-slate-300">100%</span>
             </div>
             <input type="range" id="cellBgOpacityInput" min="0" max="100" value="100" class="w-full bg-slate-800 rounded-lg" oninput="updateCellBgOpacity()">
@@ -493,7 +508,7 @@
 
           <div>
             <div class="flex justify-between text-xs mb-1">
-              <span class="text-slate-400">Cell Opacity</span>
+              <span class="text-slate-400">👻 Cell Opacity</span>
               <span id="cellOpacityVal" class="font-mono text-slate-300">100%</span>
             </div>
             <input type="range" id="cellOpacityInput" min="0" max="100" value="100" class="w-full bg-slate-800 rounded-lg" oninput="updateCellOpacity()">
@@ -501,7 +516,7 @@
 
           <div id="imageControlsBlock" class="space-y-4 hidden">
             <hr class="border-slate-800">
-            <h3 class="text-[11px] font-bold text-blue-400 uppercase tracking-wider">Inner Image Layer</h3>
+            <h3 class="text-[11px] font-bold text-blue-400 uppercase tracking-wider">🖼️ Image Settings</h3>
 
             <button id="panModeBtn" onclick="togglePanMode()" class="w-full py-2 bg-purple-950/50 hover:bg-purple-900/60 text-purple-300 rounded-lg text-xs font-semibold border border-purple-800/60 transition flex items-center justify-center space-x-1.5">
               <span>🖐</span><span>Drag to Reposition Image</span>
@@ -541,7 +556,7 @@
 
           <details class="panel border border-slate-800 rounded-lg p-2.5" open>
             <summary class="flex items-center justify-between text-[11px] font-bold text-slate-300 uppercase tracking-wider">
-              <span>Border / Outline</span>
+              <span>🔲 Border / Outline</span>
               <span class="chev text-slate-500">▶</span>
             </summary>
             <div class="mt-3 space-y-2.5">
@@ -566,7 +581,7 @@
 
           <details class="panel border border-slate-800 rounded-lg p-2.5">
             <summary class="flex items-center justify-between text-[11px] font-bold text-slate-300 uppercase tracking-wider">
-              <span>Drop Shadow</span>
+              <span>🌑 Drop Shadow</span>
               <span class="chev text-slate-500">▶</span>
             </summary>
             <div class="mt-3 space-y-2.5">
@@ -606,8 +621,8 @@
           <div>
             <label class="block text-xs text-slate-400 mb-2">Cell Z-Index Layering</label>
             <div class="flex space-x-2">
-              <button onclick="changeZIndex('cell', 1)" class="flex-1 py-1.5 bg-slate-900 hover:bg-slate-800 rounded text-xs text-slate-300 border border-slate-800">Bring Forward</button>
-              <button onclick="changeZIndex('cell', -1)" class="flex-1 py-1.5 bg-slate-900 hover:bg-slate-800 rounded text-xs text-slate-300 border border-slate-800">Send Backward</button>
+              <button onclick="changeZIndex('cell', 1)" class="flex-1 py-1.5 bg-slate-900 hover:bg-slate-800 rounded text-xs text-slate-300 border border-slate-800">⬆️ Forward</button>
+              <button onclick="changeZIndex('cell', -1)" class="flex-1 py-1.5 bg-slate-900 hover:bg-slate-800 rounded text-xs text-slate-300 border border-slate-800">⬇️ Backward</button>
             </div>
           </div>
         </div>
@@ -615,12 +630,12 @@
         <!-- TEXT CONTROLS -->
         <div id="textControls" class="space-y-4 hidden">
           <div>
-            <label class="block text-xs text-slate-400 mb-1">Text Content</label>
+            <label class="block text-xs text-slate-400 mb-1">✏️ Text Content</label>
             <textarea id="textValInput" rows="2" class="w-full bg-slate-900 border border-slate-800 rounded p-2 text-xs text-white focus:outline-none focus:border-blue-500" oninput="updateSelectedText()"></textarea>
           </div>
 
           <div>
-            <label class="block text-xs text-slate-400 mb-1">Font Family</label>
+            <label class="block text-xs text-slate-400 mb-1">🔡 Font Family</label>
             <select id="fontFamilyInput" onchange="updateSelectedText()" class="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1.5 text-xs text-slate-200">
               <option value="Inter">Inter (Sans-Serif)</option>
               <option value="Montserrat">Montserrat (Modern)</option>
@@ -635,11 +650,11 @@
 
           <div class="grid grid-cols-2 gap-2">
             <div>
-              <label class="block text-xs text-slate-400 mb-1">Font Size (px)</label>
+              <label class="block text-xs text-slate-400 mb-1">🔠 Font Size</label>
               <input type="number" id="fontSizeInput" min="8" max="220" value="32" class="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs font-mono" onchange="updateSelectedText()">
             </div>
             <div>
-              <label class="block text-xs text-slate-400 mb-1">Font Weight</label>
+              <label class="block text-xs text-slate-400 mb-1">💪 Font Weight</label>
               <select id="fontWeightInput" onchange="updateSelectedText()" class="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs">
                 <option value="300">Light</option>
                 <option value="400">Regular</option>
@@ -654,11 +669,11 @@
 
           <div class="grid grid-cols-2 gap-2">
             <div>
-              <label class="block text-xs text-slate-400 mb-1">Text Color</label>
+              <label class="block text-xs text-slate-400 mb-1">🎨 Text Color</label>
               <input type="color" id="textColorInput" value="#ffffff" class="w-full h-8 rounded bg-slate-800 border border-slate-700 cursor-pointer" onchange="updateSelectedText()">
             </div>
             <div>
-              <label class="block text-xs text-slate-400 mb-1">Alignment</label>
+              <label class="block text-xs text-slate-400 mb-1">↔️ Alignment</label>
               <div class="flex space-x-1">
                 <button onclick="setTextAlign('left')" class="flex-1 py-1.5 bg-slate-900 border border-slate-800 rounded text-xs text-slate-300">L</button>
                 <button onclick="setTextAlign('center')" class="flex-1 py-1.5 bg-slate-900 border border-slate-800 rounded text-xs text-slate-300">C</button>
@@ -668,13 +683,13 @@
           </div>
 
           <div>
-            <label class="block text-xs text-slate-400 mb-1">Rotation (°)</label>
+            <label class="block text-xs text-slate-400 mb-1">🔄 Rotation</label>
             <input type="range" id="textRotateInput" min="-180" max="180" value="0" class="w-full bg-slate-800" oninput="updateSelectedText()">
           </div>
 
           <details class="panel border border-slate-800 rounded-lg p-2.5" open>
             <summary class="flex items-center justify-between text-[11px] font-bold text-slate-300 uppercase tracking-wider">
-              <span>Appearance</span>
+              <span>✨ Appearance</span>
               <span class="chev text-slate-500">▶</span>
             </summary>
             <div class="mt-3 space-y-2.5">
@@ -695,7 +710,7 @@
 
           <details class="panel border border-slate-800 rounded-lg p-2.5">
             <summary class="flex items-center justify-between text-[11px] font-bold text-slate-300 uppercase tracking-wider">
-              <span>Outline (Stroke)</span>
+              <span>✍️ Outline (Stroke)</span>
               <span class="chev text-slate-500">▶</span>
             </summary>
             <div class="mt-3 space-y-2.5">
@@ -718,7 +733,7 @@
 
           <details class="panel border border-slate-800 rounded-lg p-2.5">
             <summary class="flex items-center justify-between text-[11px] font-bold text-slate-300 uppercase tracking-wider">
-              <span>Background Fill</span>
+              <span>🎨 Background Fill</span>
               <span class="chev text-slate-500">▶</span>
             </summary>
             <div class="mt-3 space-y-2.5">
@@ -741,7 +756,7 @@
 
           <details class="panel border border-slate-800 rounded-lg p-2.5">
             <summary class="flex items-center justify-between text-[11px] font-bold text-slate-300 uppercase tracking-wider">
-              <span>Shadow</span>
+              <span>🌑 Shadow</span>
               <span class="chev text-slate-500">▶</span>
             </summary>
             <div class="mt-3 space-y-2.5">
@@ -781,15 +796,34 @@
           <div>
             <label class="block text-xs text-slate-400 mb-2">Text Layering Order</label>
             <div class="flex space-x-2">
-              <button onclick="changeZIndex('text', 1)" class="flex-1 py-1.5 bg-slate-900 hover:bg-slate-800 rounded text-xs text-slate-300 border border-slate-800">Bring Forward</button>
-              <button onclick="changeZIndex('text', -1)" class="flex-1 py-1.5 bg-slate-900 hover:bg-slate-800 rounded text-xs text-slate-300 border border-slate-800">Send Backward</button>
+              <button onclick="changeZIndex('text', 1)" class="flex-1 py-1.5 bg-slate-900 hover:bg-slate-800 rounded text-xs text-slate-300 border border-slate-800">⬆️ Forward</button>
+              <button onclick="changeZIndex('text', -1)" class="flex-1 py-1.5 bg-slate-900 hover:bg-slate-800 rounded text-xs text-slate-300 border border-slate-800">⬇️ Backward</button>
             </div>
           </div>
 
           <button onclick="deleteSelectedText()" class="w-full py-1.5 bg-red-950/40 hover:bg-red-900/50 text-red-300 rounded-lg text-xs font-semibold border border-red-900/50 transition">🗑️ Delete Text Box</button>
         </div>
       </div>
-    </aside>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom nav bar -->
+    <nav id="bottomBar" class="fixed left-0 right-0 bottom-0 z-40 bg-slate-950 border-t border-slate-800 flex items-stretch" style="height: var(--bottom-bar-h); padding-bottom: env(safe-area-inset-bottom);">
+      <button id="navBtn-grid" onclick="toggleSheet('grid')" class="flex-1 flex flex-col items-center justify-center gap-1 text-slate-400 hover:text-white transition">
+        <span class="text-xl leading-none">🧩</span><span class="text-[11px] font-semibold">Layout</span>
+      </button>
+      <button id="navBtn-text" onclick="toggleSheet('text')" class="flex-1 flex flex-col items-center justify-center gap-1 text-slate-400 hover:text-white transition">
+        <span class="text-xl leading-none">🔤</span><span class="text-[11px] font-semibold">Text</span>
+      </button>
+      <button id="navBtn-canvas" onclick="toggleSheet('canvas')" class="flex-1 flex flex-col items-center justify-center gap-1 text-slate-400 hover:text-white transition">
+        <span class="text-xl leading-none">🖼️</span><span class="text-[11px] font-semibold">Canvas</span>
+      </button>
+      <button id="navBtn-adjust" onclick="toggleSheet('adjust')" class="flex-1 flex flex-col items-center justify-center gap-1 text-slate-400 hover:text-white transition relative">
+        <span class="text-xl leading-none">🎯</span><span class="text-[11px] font-semibold">Adjust</span>
+        <span id="adjustDot" class="hidden absolute top-1 right-[30%] w-2.5 h-2.5 bg-blue-500 rounded-full border border-slate-950"></span>
+      </button>
+    </nav>
   </div>
 
   <div id="toastHost" aria-live="polite"></div>
@@ -881,48 +915,87 @@
     }
 
     // ===================================================================
-    // MOBILE DRAWERS (off-canvas Tools / Inspector panels on phone screens)
+    // BOTTOM SHEET (Layout / Text / Canvas / Adjust panels) + contextual bar
     // ===================================================================
-    let activeDrawer = null; // null | 'left' | 'right'
+    let activeSheet = null; // null | 'grid' | 'text' | 'canvas' | 'adjust'
 
-    function openDrawer(side) {
-      activeDrawer = side;
-      syncDrawers();
+    function openSheet(name) {
+      activeSheet = name;
+      syncSheet();
     }
-    function closeDrawers() {
-      activeDrawer = null;
-      syncDrawers();
+    function closeSheet() {
+      activeSheet = null;
+      syncSheet();
     }
-    function syncDrawers() {
-      const left = document.getElementById('leftSidebar');
-      const right = document.getElementById('rightSidebar');
-      left.classList.toggle('drawer-open', activeDrawer === 'left');
-      right.classList.toggle('drawer-open', activeDrawer === 'right');
+    function toggleSheet(name) {
+      activeSheet = activeSheet === name ? null : name;
+      syncSheet();
+    }
+    function syncSheet() {
+      const sheet = document.getElementById('bottomSheet');
+      const bar = document.getElementById('bottomBar');
+      sheet.classList.toggle('sheet-open', !!activeSheet);
+      bar.classList.toggle('hidden', !!activeSheet);
+
+      ['grid', 'text', 'canvas', 'adjust'].forEach((name) => {
+        const el = document.getElementById(`tabContent-${name}`);
+        if (el) el.classList.toggle('hidden', activeSheet !== name);
+      });
+
+      const titles = { grid: '🧩 Layout', text: '🔤 Add Text', canvas: '🖼️ Canvas Settings', adjust: '🎯 Adjust Selection' };
+      const titleEl = document.getElementById('sheetTitle');
+      if (titleEl) titleEl.innerText = titles[activeSheet] || '';
+
+      ['grid', 'text', 'canvas', 'adjust'].forEach((name) => {
+        const btn = document.getElementById(`navBtn-${name}`);
+        if (btn) btn.classList.toggle('nav-active', activeSheet === name);
+      });
+
+      updateContextBar();
     }
 
-    // Panels fade translucent (mobile only) while the user is actively
-    // dragging one of their own sliders, so the canvas stays visible behind
-    // it for a live preview, then fade back in on release.
-    function isMobileLayout() {
-      return window.matchMedia('(max-width: 767px)').matches;
+    // The floating quick-action toolbar for whatever is currently selected —
+    // only shown when nothing is covering it (i.e. the sheet is closed).
+    function updateContextBar() {
+      const bar = document.getElementById('contextBar');
+      if (!bar) return;
+      const show = !!state.selectedType && !activeSheet;
+      bar.classList.toggle('hidden', !show);
+      bar.classList.toggle('flex', show);
+      const imgBtn = document.getElementById('ctxImageBtn');
+      if (imgBtn) imgBtn.classList.toggle('hidden', state.selectedType !== 'cell');
     }
-    function setDrawerFade(active) {
-      if (!isMobileLayout()) return;
-      document.getElementById('leftSidebar').classList.toggle('fade-for-preview', active);
-      document.getElementById('rightSidebar').classList.toggle('fade-for-preview', active);
+
+    function triggerContextImagePick() {
+      if (state.selectedType !== 'cell') return;
+      const input = document.getElementById('imageUploader');
+      if (input) input.click();
+    }
+
+    function deleteCurrentSelection() {
+      if (state.selectedType === 'cell') deleteSelectedCell();
+      else if (state.selectedType === 'text') deleteSelectedText();
+    }
+
+    function updateAdjustDot() {
+      const dot = document.getElementById('adjustDot');
+      if (!dot) return;
+      dot.classList.toggle('hidden', !state.selectedType);
+    }
+
+    // The sheet fades translucent while the user is actively dragging one of
+    // its own sliders, so the canvas stays visible behind it for a live
+    // preview, then fades back in on release.
+    function setSheetFade(active) {
+      const sheet = document.getElementById('bottomSheet');
+      if (sheet) sheet.classList.toggle('fade-for-preview', active);
     }
     function initSliderFadeBehavior() {
       document.querySelectorAll('input[type="range"]').forEach((inp) => {
-        inp.addEventListener('pointerdown', () => setDrawerFade(true));
-        inp.addEventListener('pointerup', () => setDrawerFade(false));
-        inp.addEventListener('pointercancel', () => setDrawerFade(false));
+        inp.addEventListener('pointerdown', () => setSheetFade(true));
+        inp.addEventListener('pointerup', () => setSheetFade(false));
+        inp.addEventListener('pointercancel', () => setSheetFade(false));
       });
-    }
-
-    function updateInspectorDot() {
-      const dot = document.getElementById('inspectorDot');
-      if (!dot) return;
-      dot.classList.toggle('hidden', !state.selectedType);
     }
 
     // ===================================================================
@@ -1110,19 +1183,8 @@
     // ===================================================================
     // TAB NAVIGATION
     // ===================================================================
-    function switchLeftTab(tab) {
-      ['grid', 'text', 'canvas'].forEach(t => {
-        const btn = document.getElementById(`tabBtn-${t}`);
-        const content = document.getElementById(`tabContent-${t}`);
-        if (t === tab) {
-          btn.className = 'py-1.5 text-xs font-semibold rounded-lg bg-blue-600 text-white transition';
-          content.classList.remove('hidden');
-        } else {
-          btn.className = 'py-1.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition';
-          content.classList.add('hidden');
-        }
-      });
-    }
+    // (Old sidebar tab-switcher removed — navigation now happens via the
+    // bottom bar's toggleSheet(), see the BOTTOM SHEET section above.)
 
     // ===================================================================
     // TEMPLATE GENERATORS
@@ -1407,7 +1469,23 @@
       state.canvas.bgType = type;
       document.querySelectorAll('.bg-style-group').forEach(el => el.classList.add('hidden'));
       document.getElementById(`bgStyle-${type}`).classList.remove('hidden');
+      updateBgTypeButtonStyles(type);
       render();
+    }
+
+    // Icon-button fill-type picker (keeps the hidden select element in sync, since
+    // other code reads/writes its .value for save/load and drag-drop).
+    function selectBgType(type) {
+      document.getElementById('bgTypeSelect').value = type;
+      changeBgType(type);
+    }
+    function updateBgTypeButtonStyles(type) {
+      document.querySelectorAll('.bg-type-btn').forEach((btn) => {
+        const active = btn.dataset.bgtype === type;
+        btn.className = `bg-type-btn flex flex-col items-center gap-1 py-2 rounded-lg border transition ${
+          active ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
+        }`;
+      });
     }
 
     function updateCanvasBgColor(color) {
@@ -2235,7 +2313,8 @@
       state.selectedId = id;
       render();
       updateInspectorPanel();
-      updateInspectorDot();
+      updateAdjustDot();
+      updateContextBar();
     }
 
     function deselectAll() {
@@ -2244,8 +2323,9 @@
       state.panModeCellId = null;
       render();
       updateInspectorPanel();
-      updateInspectorDot();
-      closeDrawers();
+      updateAdjustDot();
+      updateContextBar();
+      if (activeSheet === 'adjust') closeSheet();
     }
 
     function updateInspectorPanel() {
@@ -2771,6 +2851,7 @@
       document.getElementById('canvasWidthInput').value = c.width;
       document.getElementById('canvasHeightInput').value = c.height;
       document.getElementById('bgTypeSelect').value = c.bgType;
+      updateBgTypeButtonStyles(c.bgType);
       document.getElementById('bgColorInput').value = c.bgColor;
       document.getElementById('bgColorHex').value = c.bgColor;
       document.getElementById('bgGrad1').value = c.gradient1;
@@ -2858,7 +2939,7 @@
       if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
       if (e.key === 'Escape') {
         if (!document.getElementById('exportMenu').classList.contains('hidden')) closeExportMenu();
-        else if (activeDrawer) closeDrawers();
+        else if (activeSheet) closeSheet();
         else if (state.panModeCellId) { exitPanMode(); render(); updateInspectorPanel(); }
         else deselectAll();
       }
@@ -2888,6 +2969,8 @@
     attachBgDropZone();
     initSliderFadeBehavior();
     onExportFormatChange();
+    updateBgTypeButtonStyles(state.canvas.bgType);
+    syncSheet();
     generateTemplate('bsp');
     fitToScreen();
   </script>
